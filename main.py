@@ -266,6 +266,135 @@ def check_canslim(info, df, market_trend):
 # 5단계: 세력 추적 (Whale Tracker)
 # ──────────────────────────────────────────────────
 
+def _candle_type(c, h, l, o):
+    """캔들 유형 분류 → (이름, is_bull)"""
+    rng = h - l
+    if rng == 0:
+        return "도지", c >= o
+    body   = abs(c - o)
+    body_r = body / rng
+    upper  = h - max(c, o)
+    lower  = min(c, o) - l
+    is_bull = c >= o
+    chg    = (c - o) / o * 100 if o != 0 else 0
+
+    if body_r >= 0.65:
+        return f"장대{'양봉' if is_bull else '음봉'} ({chg:+.1f}%)", is_bull
+    if body_r <= 0.1:
+        if upper > lower * 2.5:
+            return "유성형 도지 (상단 꼬리 길게)", is_bull
+        if lower > upper * 2.5:
+            return "잠자리 도지 (하단 꼬리 길게)", is_bull
+        return "도지 (매수·매도 팽팽)", is_bull
+    if lower > body * 2 and lower > upper:
+        return f"망치형 ({'양' if is_bull else '음'}봉, 바닥 반전 신호)", is_bull
+    if upper > body * 2 and upper > lower:
+        return f"유성형 ({'양' if is_bull else '음'}봉, 고점 경고)", is_bull
+    if body_r >= 0.35:
+        return f"{'양봉' if is_bull else '음봉'} ({chg:+.1f}%)", is_bull
+    return f"소{'양봉' if is_bull else '음봉'} ({chg:+.1f}%)", is_bull
+
+
+def _build_narrative(close, high, low, open_, vol, vol_ma20, sigs, intent, cmf_cur, mfi_cur):
+    """세력 행동 자연어 서사 생성"""
+    parts = []
+
+    # ── 최근 7일 캔들 흐름 ──
+    n = min(7, len(close))
+    candle_lines = []
+    for i in range(n - 1, -1, -1):
+        idx = -(i + 1)
+        c = float(close.iloc[idx]); h = float(high.iloc[idx])
+        l = float(low.iloc[idx]);   o = float(open_.iloc[idx])
+        v = float(vol.iloc[idx]);   av = float(vol_ma20.iloc[idx])
+        cname, is_bull = _candle_type(c, h, l, o)
+        vr = v / av if av > 0 else 1.0
+        label = "오늘" if i == 0 else f"{i+1}일 전"
+        if vr >= 2.0:
+            vdesc = f"🔥 거래량 {vr:.1f}배 폭증"
+        elif vr >= 1.4:
+            vdesc = f"거래량 {vr:.1f}배 증가"
+        elif vr <= 0.5:
+            vdesc = f"거래량 {vr:.1f}배 감소"
+        else:
+            vdesc = "보통 거래량"
+        candle_lines.append(f"  • {label}: {cname} / {vdesc}")
+    parts.append("▶ 최근 캔들 흐름\n" + "\n".join(candle_lines))
+
+    # ── 가격 맥락 ──
+    pchg5 = (float(close.iloc[-1]) - float(close.iloc[-6])) / float(close.iloc[-6]) * 100 if len(close) >= 6 else 0
+    pstd5 = float(close.iloc[-5:].std() / close.iloc[-5:].mean() * 100) if len(close) >= 5 else 0
+    vol5  = float(vol.iloc[-5:].mean())
+    vma   = float(vol_ma20.iloc[-1])
+
+    if pstd5 < 1.5 and abs(pchg5) < 3:
+        ctx = f"최근 5일간 ±{pstd5:.1f}% 이내 횡보. 세력이 물량을 흡수하며 방향을 결정하는 구간."
+    elif pchg5 > 5:
+        ctx = f"최근 5일간 {pchg5:+.1f}% 상승 추세 진행 중."
+    elif pchg5 < -5:
+        ctx = f"최근 5일간 {pchg5:+.1f}% 하락 압력 지속."
+    else:
+        ctx = f"최근 5일간 {pchg5:+.1f}% 변동. 방향 탐색 중."
+
+    if vol5 > vma * 1.5:
+        ctx += f" 거래량이 평균 대비 {vol5/vma:.1f}배로 급증 → 세력 개입 강도 높음."
+    elif vol5 < vma * 0.7:
+        ctx += f" 거래량이 평균 대비 {vol5/vma:.1f}배로 감소 → 조용한 매집 또는 관망."
+    parts.append(f"▶ 가격 맥락\n  {ctx}")
+
+    # ── 세력 해석 ──
+    if cmf_cur > 0.15:
+        cmf_txt = f"CMF {cmf_cur:+.3f}: 기관 자금이 강하게 유입 중. 거래량 대부분이 상승 시 발생 → 적극 매집 신호."
+    elif cmf_cur > 0.05:
+        cmf_txt = f"CMF {cmf_cur:+.3f}: 자금 서서히 유입. 세력이 소량씩 포지션을 쌓는 중."
+    elif cmf_cur < -0.15:
+        cmf_txt = f"CMF {cmf_cur:.3f}: 기관 자금 강하게 유출. 하락 시 대량 매도 → 분산 경고."
+    elif cmf_cur < -0.05:
+        cmf_txt = f"CMF {cmf_cur:.3f}: 자금 서서히 유출. 세력이 포지션 줄이는 중."
+    else:
+        cmf_txt = f"CMF {cmf_cur:+.3f}: 자금 흐름 중립. 세력 방향 불명확."
+
+    if mfi_cur >= 80:
+        mfi_txt = f"MFI {mfi_cur:.0f}: 과매수 구간 — 단기 차익 실현 매물 주의."
+    elif mfi_cur <= 20:
+        mfi_txt = f"MFI {mfi_cur:.0f}: 과매도 구간 — 세력이 저가에서 받아가는 매집 구간."
+    elif mfi_cur >= 60:
+        mfi_txt = f"MFI {mfi_cur:.0f}: 매수 자금 우세. 매집 지속 가능성."
+    else:
+        mfi_txt = f"MFI {mfi_cur:.0f}: 매도 자금 우세. 분산 가능성."
+    parts.append(f"▶ 세력 해석\n  {cmf_txt}\n  {mfi_txt}")
+
+    # ── 전망 시나리오 ──
+    bull_c = sum(1 for s in sigs if '✅' in s)
+    bear_c = sum(1 for s in sigs if '🔴' in s)
+    is_sideways = pstd5 < 1.5 and abs(pchg5) < 3
+
+    if intent == "기관 매집 진행 중":
+        sc = ("세력이 저가 매집을 마무리하고 본격 상승을 준비하는 '스프링' 구간으로 보입니다. "
+              "장대양봉 + 거래량 급증이 출현하면 진입 신호. 현재가 근처가 지지선 역할.")
+    elif intent == "분산/출구 진행 중":
+        sc = ("세력이 보유 물량을 일반 투자자에게 넘기는 분산 단계로 판단됩니다. "
+              "장대음봉 출현 시 빠른 청산 필요. 반등은 추가 매도 기회로 활용될 수 있음.")
+    elif is_sideways and cmf_cur > 0:
+        sc = ("횡보 중 자금이 유입되는 '와이코프 매집' 패턴. "
+              "돌파 캔들 + 거래량 2배 이상 확인 시 강한 상승 가능성. 돌파 전까지는 관망 권장.")
+    elif is_sideways and cmf_cur < 0:
+        sc = ("횡보 중 자금이 유출 중. 지지선 이탈 + 거래량 증가 시 하락 돌파 가능성 경계. "
+              "방향 확인 전 신규 진입 자제.")
+    elif pchg5 > 3 and cmf_cur > 0:
+        sc = (f"상승 추세 + 자금 유입이 동시에 나타나는 강세 구간. "
+              f"MFI {mfi_cur:.0f}{'으로 과매수 — 단기 조정 후 재진입 검토.' if mfi_cur >= 75 else '으로 아직 과열 아님 — 추세 유지 가능.'}")
+    elif pchg5 < -3 and cmf_cur < 0:
+        sc = ("하락 추세 + 자금 유출이 겹치는 위험 구간. "
+              "섣부른 저점 매수보다 추세 전환(장대양봉 + CMF 양전환) 확인 후 진입 권장.")
+    else:
+        sc = (f"강세 신호 {bull_c}개 vs 약세 신호 {bear_c}개로 복합적입니다. "
+              "추가 캔들로 방향 확인 후 대응 권장.")
+    parts.append(f"▶ 전망 시나리오\n  {sc}")
+
+    return "\n\n".join(parts)
+
+
 def _cmf(close, high, low, vol, n=20):
     """Chaikin Money Flow: 일중 가격 위치 × 거래량"""
     hl = (high - low).replace(0, np.nan)
@@ -284,11 +413,12 @@ def _mfi(close, high, low, vol, n=14):
     return 100 - 100 / (1 + pmf / nmf.replace(0, np.nan))
 
 def analyze_whale(df, info):
-    close = df["Close"].astype(float)
-    high  = df["High"].astype(float)
-    low   = df["Low"].astype(float)
-    vol   = df["Volume"].astype(float)
-    diff  = close.diff()
+    close  = df["Close"].astype(float)
+    high   = df["High"].astype(float)
+    low    = df["Low"].astype(float)
+    open_  = df["Open"].astype(float)
+    vol    = df["Volume"].astype(float)
+    diff   = close.diff()
 
     vol_ma20  = vol.rolling(20, min_periods=1).mean()
     avg_spread = (high - low).rolling(20, min_periods=1).mean()
@@ -419,8 +549,12 @@ def analyze_whale(df, info):
     else:
         intent, alert = "분산 징후 (확인 필요)", "🟡 주의"
 
+    narrative = _build_narrative(
+        close, high, low, open_, vol, vol_ma20, sigs, intent, cmf_cur, mfi_cur
+    )
     return {"sigs": sigs, "intent": intent, "alert": alert,
-            "cmf": round(cmf_cur, 3), "mfi": round(mfi_cur, 1)}
+            "cmf": round(cmf_cur, 3), "mfi": round(mfi_cur, 1),
+            "narrative": narrative}
 
 
 # ──────────────────────────────────────────────────

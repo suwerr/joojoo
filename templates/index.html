@@ -724,6 +724,11 @@ function render(d) {
     ${whaleHtml}
     <div class="irow" style="margin-top:0.5rem"><span class="ik">세력 추정 의도</span><span class="iv">${esc(whale.intent)}</span></div>
     <div class="irow"><span class="ik">주의 레벨</span><span class="badge ${alertBadge(whale.alert)}">${esc(whale.alert)}</span></div>
+    ${whale.narrative ? `
+    <div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:1rem">
+      <div style="font-size:0.72rem;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.6rem">🔬 세력 행동 분석 (AI 서사)</div>
+      <pre id="whale-narrative" style="white-space:pre-wrap;font-family:inherit;font-size:0.84rem;line-height:1.8;color:var(--text);margin:0;background:var(--surface2);border-radius:8px;padding:1rem"></pre>
+    </div>` : ''}
   </div>
 
   <div class="card">
@@ -749,6 +754,10 @@ function render(d) {
 
   /* safe text injection for insight (XSS 방지) */
   document.getElementById('insight-p').textContent = insight || '';
+  const narrativeEl = document.getElementById('whale-narrative');
+  if (narrativeEl && d.whale && d.whale.narrative) {
+    narrativeEl.textContent = d.whale.narrative;
+  }
 
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
