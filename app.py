@@ -298,8 +298,10 @@ def analyze():
                 gemini_analysis = analyze_chart_image(tmp_chart)
                 if gemini_analysis and gemini_analysis.startswith("[오류]"):
                     gemini_analysis = None
-        except Exception:
-            pass
+        except Exception as e:
+            import traceback
+            print(f"[Gemini 분석 오류] {e}")
+            traceback.print_exc()
         finally:
             if tmp_chart:
                 try: os.unlink(tmp_chart)
