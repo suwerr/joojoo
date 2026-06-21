@@ -75,6 +75,8 @@ KR_NAME_MAP = {
     # 게임
     "로블록스": "RBLX", "유니티": "U", "ea": "EA", "액티비전": "ATVI",
     "테이크투": "TTWO",
+    # 방산·우주 (추가)
+    "노스롭그루먼": "NOC", "제너럴다이나믹스": "GD", "l3해리스": "LHX",
     # 한국 주요 종목
     "삼성전자": "005930.KS", "sk하이닉스": "000660.KS", "lg에너지솔루션": "373220.KS",
     "현대차": "005380.KS", "현대자동차": "005380.KS", "기아": "000270.KS",
@@ -129,14 +131,38 @@ def get_insight(name, tech, risk):
             f"손실이 커지기 전에 출구를 찾아라. 손절은 패배가 아닌 자본 보호다.")
 
 
+PRIVATE_COMPANIES = {
+    "스페이스x": "SpaceX", "스페이스엑스": "SpaceX",
+    "오픈ai": "OpenAI", "챗gpt": "OpenAI",
+    "앤트로픽": "Anthropic",
+    "데이터브릭스": "Databricks",
+    "스트라이프": "Stripe",
+    "틱톡": "TikTok / ByteDance",
+    "바이트댄스": "ByteDance",
+    "샤인": "SHEIN",
+    "레볼루트": "Revolut",
+    "클라나": "Klarna",
+    "패스트": "Fast",
+}
+
 @app.route("/search")
 def search():
     q = request.args.get("q", "").strip()
     if not q:
         return jsonify([])
 
-    # 한국어 종목명 딕셔너리 우선 조회
     q_lower = q.lower().replace(" ", "")
+
+    # 비상장 기업 체크
+    private_match = next((v for k, v in PRIVATE_COMPANIES.items() if k.startswith(q_lower)), None)
+    if private_match:
+        return jsonify([{
+            "symbol": "__PRIVATE__",
+            "name": f"{private_match} — 비상장 기업으로 주식 분석이 불가합니다",
+            "exchange": "", "type": "",
+        }])
+
+    # 한국어 종목명 딕셔너리 우선 조회
     matched = [(k, v) for k, v in KR_NAME_MAP.items() if k.replace(" ", "").startswith(q_lower)]
     if matched:
         results = []

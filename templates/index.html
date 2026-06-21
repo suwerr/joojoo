@@ -381,11 +381,14 @@ function acHide() {
 
 function acRender(results) {
   if (!results.length) { acHide(); return; }
-  acItems = results.filter(r => r.symbol !== '__HINT__');
+  acItems = results.filter(r => r.symbol !== '__HINT__' && r.symbol !== '__PRIVATE__');
   acIdx = -1;
   acList.innerHTML = results.map((r, i) => {
     if (r.symbol === '__HINT__') {
       return `<div class="ac-loading" style="color:var(--yellow)">${esc(r.name)}</div>`;
+    }
+    if (r.symbol === '__PRIVATE__') {
+      return `<div class="ac-loading" style="color:var(--orange)">🔒 ${esc(r.name)}</div>`;
     }
     const realIdx = acItems.indexOf(r);
     return `<div class="ac-item" data-i="${realIdx}">
