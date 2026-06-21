@@ -622,7 +622,7 @@ function render(d) {
     <div class="card-title">📉 가격 차트 (캔들스틱 + 이동평균)</div>
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.6rem;">
       <div class="chart-legend">
-        <span class="leg-item"><span class="leg-dot" style="background:#ffa657"></span>MA10</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#ffffff"></span>MA10</span>
         <span class="leg-item"><span class="leg-dot" style="background:#58a6ff"></span>MA20</span>
         <span class="leg-item"><span class="leg-dot" style="background:#d29922"></span>MA50</span>
         <span class="leg-item"><span class="leg-dot" style="background:#ff7b72"></span>MA200</span>
@@ -913,7 +913,7 @@ function renderChart(chartData) {
     color: d.close >= d.open ? 'rgba(63,185,80,0.32)' : 'rgba(248,81,73,0.32)',
   })));
   [
-    { data: sma10,  color: '#ffa657', width: 1 },
+    { data: sma10,  color: '#ffffff', width: 1 },
     { data: sma20,  color: '#58a6ff', width: 1 },
     { data: sma50,  color: '#d29922', width: 1.5 },
     { data: sma200, color: '#ff7b72', width: 2 },
