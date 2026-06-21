@@ -709,6 +709,18 @@ function render(d) {
 
   <div class="card">
     <div class="card-title">🐋 세력 분석 (Whale Tracker)</div>
+    <div class="g2" style="margin-bottom:0.75rem">
+      <div class="trade-item">
+        <div class="tl">CMF (Chaikin Money Flow)</div>
+        <div class="tv ${whale.cmf > 0.05 ? 'c-green' : whale.cmf < -0.05 ? 'c-red' : ''}">${whale.cmf != null ? whale.cmf.toFixed(3) : 'N/A'}</div>
+        <div class="tp">${whale.cmf > 0.15 ? '강한 자금 유입' : whale.cmf > 0.05 ? '자금 유입' : whale.cmf < -0.15 ? '강한 자금 유출' : whale.cmf < -0.05 ? '자금 유출' : '중립'}</div>
+      </div>
+      <div class="trade-item">
+        <div class="tl">MFI (Money Flow Index)</div>
+        <div class="tv ${whale.mfi >= 80 ? 'c-red' : whale.mfi <= 20 ? 'c-green' : whale.mfi >= 60 ? 'c-green' : ''}">${whale.mfi != null ? whale.mfi.toFixed(1) : 'N/A'}</div>
+        <div class="tp">${whale.mfi >= 80 ? '과매수 — 차익 실현 주의' : whale.mfi <= 20 ? '과매도 — 매집 구간' : whale.mfi >= 60 ? '매수세 강함' : '보통'}</div>
+      </div>
+    </div>
     ${whaleHtml}
     <div class="irow" style="margin-top:0.5rem"><span class="ik">세력 추정 의도</span><span class="iv">${esc(whale.intent)}</span></div>
     <div class="irow"><span class="ik">주의 레벨</span><span class="badge ${alertBadge(whale.alert)}">${esc(whale.alert)}</span></div>

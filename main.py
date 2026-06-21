@@ -266,106 +266,161 @@ def check_canslim(info, df, market_trend):
 # 5단계: 세력 추적 (Whale Tracker)
 # ──────────────────────────────────────────────────
 
+def _cmf(close, high, low, vol, n=20):
+    """Chaikin Money Flow: 일중 가격 위치 × 거래량"""
+    hl = (high - low).replace(0, np.nan)
+    mfm = ((close - low) - (high - close)) / hl
+    mfv = mfm * vol
+    return mfv.rolling(n, min_periods=5).sum() / vol.rolling(n, min_periods=5).sum()
+
+def _mfi(close, high, low, vol, n=14):
+    """Money Flow Index: 거래량 가중 RSI"""
+    tp = (high + low + close) / 3
+    rmf = tp * vol
+    pos = rmf.where(tp > tp.shift(1), 0.0)
+    neg = rmf.where(tp < tp.shift(1), 0.0)
+    pmf = pos.rolling(n, min_periods=1).sum()
+    nmf = neg.rolling(n, min_periods=1).sum()
+    return 100 - 100 / (1 + pmf / nmf.replace(0, np.nan))
+
 def analyze_whale(df, info):
     close = df["Close"].astype(float)
     high  = df["High"].astype(float)
     low   = df["Low"].astype(float)
     vol   = df["Volume"].astype(float)
+    diff  = close.diff()
 
-    vol_ma20 = vol.rolling(20, min_periods=1).mean()
+    vol_ma20  = vol.rolling(20, min_periods=1).mean()
+    avg_spread = (high - low).rolling(20, min_periods=1).mean()
+
     sigs = []
 
-    # ① 매집/분산 압력 — 최근 20일 상승일 vs 하락일 거래량 비교
-    diff = close.diff()
-    up_vol = vol[diff > 0].iloc[-20:]
-    dn_vol = vol[diff < 0].iloc[-20:]
-    if len(up_vol) >= 3 and len(dn_vol) >= 3:
-        uv = float(up_vol.mean())
-        dv = float(dn_vol.mean())
-        ratio = uv / dv if dv > 0 else 1
-        if ratio >= 1.5:
-            sigs.append(f"① 매집 압력 감지 🟡 (상승일 거래량이 하락일 대비 {ratio:.1f}배 — 세력 매집 징후)")
-        elif ratio <= 0.65:
-            sigs.append(f"① 분산 압력 감지 🔴 (하락일 거래량이 상승일 대비 {1/ratio:.1f}배 — 세력 출구 징후)")
+    # ① CMF (Chaikin Money Flow) ─ 자금 유입/유출 강도
+    cmf_s   = _cmf(close, high, low, vol)
+    cmf_cur  = float(cmf_s.iloc[-1]) if not np.isnan(cmf_s.iloc[-1]) else 0.0
+    cmf_prev = float(cmf_s.iloc[-10]) if len(cmf_s) >= 10 and not np.isnan(cmf_s.iloc[-10]) else cmf_cur
+    if cmf_cur > 0.15:
+        sigs.append(f"① CMF +{cmf_cur:.3f} 강한 매집 ✅ (기관 자금 유입 확인 — 신뢰도 높음)")
+    elif cmf_cur > 0.05:
+        sigs.append(f"① CMF +{cmf_cur:.3f} 완만한 매집 🟡 (자금 서서히 유입 중)")
+    elif cmf_cur < -0.15:
+        sigs.append(f"① CMF {cmf_cur:.3f} 강한 분산 🔴 (기관 자금 대량 유출 — 위험)")
+    elif cmf_cur < -0.05:
+        sigs.append(f"① CMF {cmf_cur:.3f} 완만한 분산 🟡 (자금 서서히 유출)")
+    if cmf_prev < -0.03 and cmf_cur > 0.03:
+        sigs.append("① CMF 음→양 전환 ✅ (세력 방향 전환 — 매집 시작 신호)")
+    elif cmf_prev > 0.03 and cmf_cur < -0.03:
+        sigs.append("① CMF 양→음 전환 🔴 (세력 방향 전환 — 분산 시작 경고)")
 
-    # ② 조용한 매집 — 최근 5일 거래량 1.5배+ 이면서 가격 변동 3% 미만
+    # ② MFI (Money Flow Index) ─ 거래량 가중 RSI
+    mfi_s   = _mfi(close, high, low, vol)
+    mfi_cur  = float(mfi_s.iloc[-1]) if not np.isnan(mfi_s.iloc[-1]) else 50.0
+    mfi_prev = float(mfi_s.iloc[-5])  if len(mfi_s) >= 5 and not np.isnan(mfi_s.iloc[-5]) else mfi_cur
+    if mfi_cur >= 80:
+        sigs.append(f"② MFI {mfi_cur:.1f} 과매수 🔴 (세력 차익 실현 구간 — 고점 주의)")
+    elif mfi_cur <= 20:
+        sigs.append(f"② MFI {mfi_cur:.1f} 과매도 ✅ (세력 저가 매집 구간 — 반등 가능)")
+    if mfi_prev <= 20 and mfi_cur > 20:
+        sigs.append(f"② MFI 과매도 탈출 ✅ ({mfi_prev:.0f}→{mfi_cur:.0f} — 매집 완료 후 상승 전환)")
+    if mfi_prev >= 80 and mfi_cur < 80:
+        sigs.append(f"② MFI 과매수 이탈 ⚠️ ({mfi_prev:.0f}→{mfi_cur:.0f} — 세력 차익 실현 시작)")
+
+    # ③ VSA (Volume Spread Analysis) ─ 최근 5거래일 분석
+    for ts, row in df.iloc[-5:].iterrows():
+        c = float(row['Close']); h = float(row['High'])
+        l = float(row['Low']);   v = float(row['Volume'])
+        avg_v  = float(vol_ma20.loc[ts])  if ts in vol_ma20.index  else float(vol_ma20.iloc[-1])
+        avg_sp = float(avg_spread.loc[ts]) if ts in avg_spread.index else float(avg_spread.iloc[-1])
+        spread = h - l
+        close_pos = (c - l) / spread if spread > 0 else 0.5
+        v_ratio   = v / avg_v if avg_v > 0 else 1.0
+        date_str  = ts.strftime('%m/%d')
+
+        if v_ratio > 2 and spread < avg_sp * 0.7 and 0.3 < close_pos < 0.7:
+            sigs.append(f"③ VSA 흡수 패턴 🟡 ({date_str}: 거래량 {v_ratio:.1f}배·좁은폭 — 세력 물량 흡수 중)")
+            break
+        if v_ratio > 1.8 and close_pos >= 0.7:
+            sigs.append(f"③ VSA 강세 신호 ✅ ({date_str}: 거래량 {v_ratio:.1f}배·고점마감 — 기관 적극 매수)")
+            break
+        if v_ratio > 1.8 and close_pos <= 0.3:
+            sigs.append(f"③ VSA 약세 신호 🔴 ({date_str}: 거래량 {v_ratio:.1f}배·저점마감 — 기관 매도 압력)")
+            break
+
+    # ④ OBV 다이버전스 (단기 20일 + 장기 90일)
+    obv_s = _obv(close, vol)
+    if len(close) >= 20:
+        p20 = float(close.iloc[-1]) - float(close.iloc[-20])
+        o20 = float(obv_s.iloc[-1]) - float(obv_s.iloc[-20])
+        ref = float(close.iloc[-20]) * 0.02
+        if p20 < -ref and o20 > 0:
+            sigs.append("④ 단기 강세 OBV 다이버전스 ✅ (20일: 가격↓ OBV↑ — 세력 저가 매집)")
+        elif p20 > ref and o20 < 0:
+            sigs.append("④ 단기 약세 OBV 다이버전스 ⚠️ (20일: 가격↑ OBV↓ — 세력 고가 분산)")
+    if len(close) >= 90:
+        p90 = float(close.iloc[-1]) - float(close.iloc[-90])
+        o90 = float(obv_s.iloc[-1]) - float(obv_s.iloc[-90])
+        if p90 < 0 and o90 > 0:
+            sigs.append("④ 장기 강세 OBV 다이버전스 ✅ (90일: 가격↓ OBV↑ — 장기 비밀 매집)")
+        elif p90 > 0 and o90 < 0:
+            sigs.append("④ 장기 약세 OBV 다이버전스 ⚠️ (90일: 가격↑ OBV↓ — 장기 분산 진행)")
+
+    # ⑤ 포켓 피벗 (O'Neil 기관 매수 신호)
+    if len(vol) >= 12 and diff.iloc[-1] > 0:
+        past_dn = vol[diff < 0].iloc[-11:-1]
+        if len(past_dn) > 0 and float(vol.iloc[-1]) > float(past_dn.max()):
+            sigs.append(f"⑤ 포켓 피벗 ✅ (거래량 {float(vol.iloc[-1])/float(past_dn.max()):.1f}배 — 기관 집중 매수 신호)")
+
+    # ⑥ 조용한 매집 (고거래량 + 저변동)
     r5_vol = float(vol.iloc[-5:].mean())
     r5_avg = float(vol_ma20.iloc[-5:].mean())
     p5_chg = abs((float(close.iloc[-1]) - float(close.iloc[-6])) / float(close.iloc[-6])) if len(close) >= 6 else 1
     if r5_vol > r5_avg * 1.5 and p5_chg < 0.03:
-        sigs.append("② 조용한 매집 감지 🟡 (고거래량 + 소폭 가격 변동 — 횡보 중 매집)")
+        sigs.append(f"⑥ 조용한 매집 🟡 (거래량 {r5_vol/r5_avg:.1f}배·가격변동 {p5_chg*100:.1f}% — 횡보 중 세력 흡수)")
 
-    # ③ 최근 60일 이상 거래량 스파이크 (3배+)
+    # ⑦ 매집/분산 압력 (상승일 vs 하락일 거래량)
+    up_vol = vol[diff > 0].iloc[-20:]
+    dn_vol = vol[diff < 0].iloc[-20:]
+    if len(up_vol) >= 3 and len(dn_vol) >= 3:
+        uv, dv = float(up_vol.mean()), float(dn_vol.mean())
+        r = uv / dv if dv > 0 else 1
+        if r >= 1.5:
+            sigs.append(f"⑦ 매집 압력 🟡 (상승일 거래량이 하락일 대비 {r:.1f}배)")
+        elif r <= 0.65:
+            sigs.append(f"⑦ 분산 압력 🔴 (하락일 거래량이 상승일 대비 {1/r:.1f}배)")
+
+    # ⑧ 이상 거래량 스파이크 (최근 60일 3배+)
     recent_ratio = (vol / vol_ma20).iloc[-60:]
     spikes = int((recent_ratio > 3).sum())
     if spikes >= 1:
-        max_ratio = float(recent_ratio.max())
-        sigs.append(f"③ 이상 거래량 스파이크 {spikes}회 감지 🟡 (최대 {max_ratio:.1f}배 — 세력 대량 매매 흔적)")
+        sigs.append(f"⑧ 이상 거래량 스파이크 {spikes}회 🟡 (최대 {float(recent_ratio.max()):.1f}배 — 세력 대량 매매 흔적)")
 
-    # ④ 고점 이후 분산 완료 패턴 (최근 40일)
-    if len(close) >= 40:
-        w = close.iloc[-40:]
-        pk = int(w.values.argmax())
-        if 5 <= pk <= 34:
-            vb = float(vol.iloc[-40:-40+pk+1].mean())
-            va = float(vol.iloc[-40+pk+1:].mean())
-            price_drop = float(close.iloc[-1]) < float(w.iloc[pk]) * 0.95
-            if vb > 0 and va < vb * 0.6 and price_drop:
-                sigs.append("④ 분산 완료 패턴 🔴 (고점 이후 거래량 급감 + 가격 하락 — 세력 출구)")
-
-    # ⑤ 포켓 피벗 — 오늘 상승 + 거래량이 최근 10일 하락일 최대치 초과 (기관 매수 신호)
-    if len(vol) >= 12 and diff.iloc[-1] > 0:
-        past_dn_vol = vol[diff < 0].iloc[-11:-1]
-        if len(past_dn_vol) > 0:
-            max_dn = float(past_dn_vol.max())
-            today_v = float(vol.iloc[-1])
-            if today_v > max_dn:
-                sigs.append(f"⑤ 포켓 피벗 감지 ✅ (상승일 거래량 {today_v/max_dn:.1f}배 — 기관 적극 매수 신호)")
-
-    # ⑥ 절정 거래량 (Climactic Run) — 최근 5일 최대 대비 2배+ 폭등/폭락
-    if len(vol) >= 6:
-        prev5_max = float(vol.iloc[-6:-1].max())
-        today_v   = float(vol.iloc[-1])
-        today_chg = abs(float(close.pct_change().iloc[-1]))
-        if today_v > prev5_max * 2 and today_chg > 0.03:
-            sigs.append("⑥ 절정 거래량 감지 🔴 (극단적 거래량 + 급등락 — 추세 전환 경계)")
-
-    # ⑦ 장기 OBV 다이버전스 (90일)
-    if len(close) >= 90:
-        obv_s = _obv(close, vol)
-        p90 = float(close.iloc[-1]) - float(close.iloc[-90])
-        o90 = float(obv_s.iloc[-1]) - float(obv_s.iloc[-90])
-        if p90 < 0 and o90 > 0:
-            sigs.append("⑦ 강세 OBV 다이버전스 ✅ (90일간 가격 하락 중 OBV 상승 — 비밀 매집)")
-        elif p90 > 0 and o90 < 0:
-            sigs.append("⑦ 약세 OBV 다이버전스 ⚠️ (90일간 가격 상승 중 OBV 하락 — 세력 분산)")
-
-    # ⑧ 작전주 3박자 (소형주 + 단기 급등)
+    # ⑨ 작전주 패턴
     mc  = info.get("marketCap") or 0
     p1m = (float(close.iloc[-1]) - float(close.iloc[-22])) / float(close.iloc[-22]) * 100 if len(close) >= 22 else 0
     if 0 < mc < 500_000_000_000 and p1m > 30:
-        sigs.append("⑧ 작전주 패턴 경계 🚨 (소형주 + 단기 30%+ 급등)")
+        sigs.append(f"⑨ 작전주 패턴 경계 🚨 (소형주 + 단기 {p1m:.0f}% 급등)")
 
     if not sigs:
         sigs.append("특이 세력 흔적 없음 🟢")
-        return {"sigs": sigs, "intent": "관망", "alert": "🟢 정상"}
+        return {"sigs": sigs, "intent": "관망", "alert": "🟢 정상",
+                "cmf": round(cmf_cur, 3), "mfi": round(mfi_cur, 1)}
+
+    bull = sum(1 for s in sigs if any(x in s for x in ['✅', '매집', '강세', '피벗', '탈출', '유입']))
+    bear = sum(1 for s in sigs if any(x in s for x in ['🔴', '분산', '약세', '유출', '작전주', '이탈', '차익']))
 
     if any("작전주" in s for s in sigs):
         intent, alert = "작전주 경계", "🔴 위험"
-    elif any("분산 완료" in s or "절정 거래량" in s for s in sigs):
-        intent, alert = "분산 중 (출구 경계)", "🔴 위험"
-    elif any("분산 압력" in s or "약세 OBV" in s for s in sigs):
-        intent, alert = "분산 징후", "🟡 주의"
-    elif any("포켓 피벗" in s for s in sigs):
-        intent, alert = "기관 적극 매수 중", "🟢 긍정적"
-    elif any("매집" in s or "강세 OBV" in s for s in sigs):
-        intent, alert = "저가 매집 중", "🟡 주의"
-    elif any("이상 거래량" in s for s in sigs):
-        intent, alert = "세력 개입 흔적 있음", "🟡 주의"
+    elif bear > bull + 1:
+        intent, alert = "분산/출구 진행 중", "🔴 위험"
+    elif bull > bear + 1:
+        intent, alert = "기관 매집 진행 중", "🟢 긍정적"
+    elif bull > 0:
+        intent, alert = "매집 징후 (확인 필요)", "🟡 주의"
     else:
-        intent, alert = "불명확", "🟡 주의"
+        intent, alert = "분산 징후 (확인 필요)", "🟡 주의"
 
-    return {"sigs": sigs, "intent": intent, "alert": alert}
+    return {"sigs": sigs, "intent": intent, "alert": alert,
+            "cmf": round(cmf_cur, 3), "mfi": round(mfi_cur, 1)}
 
 
 # ──────────────────────────────────────────────────
