@@ -9,6 +9,8 @@
 
 import sys
 import io
+import os
+import base64
 import argparse
 import warnings
 from datetime import datetime
@@ -38,6 +40,13 @@ _check_libs()
 import yfinance as yf  # noqa: E402
 import pandas as pd    # noqa: E402
 import numpy as np     # noqa: E402
+
+try:
+    import google.generativeai as _genai
+    import PIL.Image as _PIL_Image
+    _HAS_GEMINI = True
+except ImportError:
+    _HAS_GEMINI = False
 
 
 # ──────────────────────────────────────────────────
@@ -655,6 +664,42 @@ def score_and_risk(tech, canslim_score, capital):
 
 
 # ──────────────────────────────────────────────────
+# 차트 이미지 AI 분석 (Claude Vision)
+# ──────────────────────────────────────────────────
+
+def analyze_chart_image(image_path: str) -> str:
+    if not _HAS_GEMINI:
+        return "[오류] google-generativeai 또는 Pillow 패키지가 없습니다.\n       설치: pip install google-generativeai Pillow"
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return "[오류] GEMINI_API_KEY 환경변수가 설정되지 않았습니다."
+
+    if not os.path.isfile(image_path):
+        return f"[오류] 파일을 찾을 수 없습니다: {image_path}"
+
+    _genai.configure(api_key=api_key)
+    model = _genai.GenerativeModel("gemini-1.5-flash")
+    img = _PIL_Image.open(image_path)
+
+    print("⏳ AI 차트 분석 중 (Gemini Vision) ...")
+    response = model.generate_content([
+        img,
+        (
+            "이 주식 차트를 분석해주세요. 다음 항목을 포함해주세요:\n"
+            "1. 현재 추세 (상승/하락/횡보)\n"
+            "2. 주요 지지선/저항선\n"
+            "3. 차트 패턴 (헤드앤숄더, 컵앤핸들 등)\n"
+            "4. 거래량 패턴\n"
+            "5. 진입/청산 시그널\n"
+            "6. 위험 요소 및 주의사항\n"
+            "한국어로 답변해주세요."
+        ),
+    ])
+    return response.text
+
+
+# ──────────────────────────────────────────────────
 # 리포트 출력
 # ──────────────────────────────────────────────────
 
@@ -684,7 +729,7 @@ def _wrap(text, width=56, indent=2):
     return "\n".join(out)
 
 
-def print_report(ticker, info, market, tech, risk, canslim, canslim_score, whale):
+def print_report(ticker, info, market, tech, risk, canslim, canslim_score, whale, image_analysis=None):
     name     = info.get("longName") or info.get("shortName") or ticker
     sector   = info.get("sector") or info.get("industry") or "N/A"
     currency = info.get("currency") or "USD"
@@ -857,6 +902,14 @@ def print_report(ticker, info, market, tech, risk, canslim, canslim_score, whale
     for i, r in enumerate(rules, 1):
         print(f"  {i}. {r}")
 
+    # ── AI 차트 이미지 분석
+    if image_analysis:
+        print(f"\n{LINE}")
+        print(" 🖼️  AI 차트 이미지 분석 (Gemini Vision)")
+        print(LINE)
+        for line in image_analysis.splitlines():
+            print(f"  {line}")
+
     print(f"\n{SEP}")
     print(" ⚠️  본 분석은 투자 참고용이며, 투자 결정의 책임은")
     print("    전적으로 본인에게 있습니다.")
@@ -867,7 +920,7 @@ def print_report(ticker, info, market, tech, risk, canslim, canslim_score, whale
 # 분석 실행
 # ──────────────────────────────────────────────────
 
-def run(ticker, capital):
+def run(ticker, capital, image_path=None):
     print(f"\n⏳ [{ticker}] 데이터 수집 중 ...")
     stock = yf.Ticker(ticker)
     df    = stock.history(period="2y")
@@ -901,8 +954,12 @@ def run(ticker, capital):
     print("⏳ 세력 추적 중 ...")
     whale = analyze_whale(df, info)
 
+    image_analysis = None
+    if image_path:
+        image_analysis = analyze_chart_image(image_path)
+
     print("✅ 분석 완료!")
-    print_report(ticker, info, market, tech, risk, canslim, canslim_score, whale)
+    print_report(ticker, info, market, tech, risk, canslim, canslim_score, whale, image_analysis)
 
 
 # ──────────────────────────────────────────────────
@@ -928,13 +985,15 @@ def main():
     parser.add_argument("ticker", nargs="?", help="종목 티커")
     parser.add_argument("--capital", "-c", type=float, default=10_000_000,
                         help="투자 자본금 (기본: 10,000,000)")
+    parser.add_argument("--image", "-i", default=None,
+                        help="차트 이미지 파일 경로 (AI 분석 포함)")
     args = parser.parse_args()
 
     print(BANNER)
     capital = args.capital
 
     if args.ticker:
-        run(args.ticker.upper(), capital)
+        run(args.ticker.upper(), capital, image_path=args.image)
         return
 
     while True:
@@ -950,7 +1009,13 @@ def main():
             print("프로그램을 종료합니다.")
             break
 
-        run(ticker.upper(), capital)
+        img_hint = " (anthropic 미설치)" if not _HAS_ANTHROPIC else ""
+        try:
+            img_path = input(f"📷 차트 이미지 경로{img_hint} (없으면 Enter) > ").strip()
+        except (EOFError, KeyboardInterrupt):
+            img_path = ""
+
+        run(ticker.upper(), capital, image_path=img_path or None)
 
 
 if __name__ == "__main__":

@@ -1,13 +1,20 @@
 from flask import Flask, render_template, request, jsonify
-import sys, os, warnings
+import sys, os, warnings, tempfile
 import numpy as np
 import requests as req_lib
+import matplotlib
+matplotlib.use('Agg')
+try:
+    import mplfinance as _mpf
+    _HAS_MPF = True
+except ImportError:
+    _HAS_MPF = False
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 warnings.filterwarnings("ignore")
 
-from main import analyze_market, analyze_technicals, check_canslim, score_and_risk, analyze_whale, _rsi, _macd
+from main import analyze_market, analyze_technicals, check_canslim, score_and_risk, analyze_whale, _rsi, _macd, analyze_chart_image
 import yfinance as yf
 
 app = Flask(__name__)
@@ -146,6 +153,35 @@ PRIVATE_COMPANIES = {
     "패스트": "Fast",
 }
 
+def generate_chart_image(df, ticker):
+    if not _HAS_MPF:
+        return None
+    chart_df = df[df['Volume'] > 0].tail(180).copy()
+    close = chart_df['Close'].astype(float)
+
+    ap = []
+    for window, color, width in [(20, '#58a6ff', 1.0), (50, '#d29922', 1.5), (200, '#ff7b72', 2.0)]:
+        ma = close.rolling(window).mean()
+        if ma.dropna().shape[0] >= 5:
+            ap.append(_mpf.make_addplot(ma, color=color, width=width))
+
+    rsi = _rsi(close, 14).reindex(chart_df.index)
+    ap.append(_mpf.make_addplot(rsi, panel=1, color='#c778dd', width=1.2, ylabel='RSI'))
+
+    mc = _mpf.make_marketcolors(up='#26a641', down='#da3633', edge='inherit', wick='inherit',
+                                 volume={'up': '#26a641', 'down': '#da3633'})
+    style = _mpf.make_mpf_style(base_mpf_style='nightclouds', marketcolors=mc,
+                                  figcolor='#0d1117', facecolor='#161b22')
+
+    _, tmp_path = tempfile.mkstemp(suffix='.png')
+    _mpf.plot(chart_df, type='candle', style=style, addplot=ap,
+              volume=True, panel_ratios=(4, 1),
+              title=f'\n  {ticker}',
+              savefig=dict(fname=tmp_path, dpi=100, bbox_inches='tight'),
+              figsize=(12, 7))
+    return tmp_path
+
+
 @app.route("/search")
 def search():
     q = request.args.get("q", "").strip()
@@ -253,6 +289,22 @@ def analyze():
         risk = score_and_risk(tech, canslim_score, capital)
         whale = analyze_whale(df, info)
 
+        # AI 차트 시각 분석 (Gemini Vision)
+        gemini_analysis = None
+        tmp_chart = None
+        try:
+            tmp_chart = generate_chart_image(df, ticker)
+            if tmp_chart:
+                gemini_analysis = analyze_chart_image(tmp_chart)
+                if gemini_analysis and gemini_analysis.startswith("[오류]"):
+                    gemini_analysis = None
+        except Exception:
+            pass
+        finally:
+            if tmp_chart:
+                try: os.unlink(tmp_chart)
+                except: pass
+
         name = info.get("longName") or info.get("shortName") or ticker
         insight = get_insight(name, tech, risk)
 
@@ -305,6 +357,7 @@ def analyze():
             "risk": risk,
             "whale": whale,
             "insight": insight,
+            "gemini_analysis": gemini_analysis,
             "chart": {
                 "ohlcv":       ohlcv,
                 "sma10":       ma_line(10),
@@ -499,8 +552,8 @@ def scan():
     return jsonify(to_json(results))
 
 
+
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_ENV") != "production"
     app.run(debug=debug, host="0.0.0.0", port=port)

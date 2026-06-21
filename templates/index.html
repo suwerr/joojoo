@@ -745,6 +745,12 @@ function render(d) {
     <div class="rule"><span class="rn">5.</span><span>퀀트 스코어 80점 미만인 자리는 진입하지 않는다.</span></div>
   </div>
 
+  ${d.gemini_analysis ? `
+  <div class="card">
+    <div class="card-title">🤖 AI 차트 패턴 분석 (Gemini Vision)</div>
+    <pre id="gemini-text" style="white-space:pre-wrap;font-family:inherit;font-size:0.87rem;line-height:1.8;color:var(--text);margin:0"></pre>
+  </div>` : ''}
+
   <div class="disclaimer">⚠️ 본 분석은 투자 참고용이며, 투자 결정의 책임은 전적으로 본인에게 있습니다.</div>
   `;
 
@@ -758,6 +764,8 @@ function render(d) {
   if (narrativeEl && d.whale && d.whale.narrative) {
     narrativeEl.textContent = d.whale.narrative;
   }
+  const geminiEl = document.getElementById('gemini-text');
+  if (geminiEl && d.gemini_analysis) geminiEl.textContent = d.gemini_analysis;
 
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
