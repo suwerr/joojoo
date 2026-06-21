@@ -613,7 +613,7 @@ function render(d) {
   <div class="stock-bar">
     <div>
       <div class="stock-name">${esc(name)}<span class="stock-ticker">${esc(ticker)}</span></div>
-      <div class="stock-meta">${esc(sector)} &nbsp;·&nbsp; ${new Date().toLocaleString('ko-KR')}</div>
+      <div class="stock-meta">${esc(sector)} &nbsp;·&nbsp; ${new Date().toLocaleString('ko-KR')} &nbsp;·&nbsp; ${d.gemini_analysis ? '<span style="color:var(--green)">🤖 AI 분석 포함</span>' : '<span style="color:var(--muted)">🤖 AI 분석 없음</span>'}</div>
     </div>
     <div class="stock-price" style="color:${scCol}">${fmt(tech.cur)} <span style="font-size:0.9rem;color:var(--muted)">${esc(currency)}</span></div>
   </div>
