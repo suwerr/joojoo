@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import sys, os, warnings
 import numpy as np
 import requests as req_lib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 warnings.filterwarnings("ignore")
@@ -318,6 +319,122 @@ def analyze():
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+SCAN_TICKERS = {
+    "us": [
+        # 빅테크
+        "AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","BRK-B","V","JPM",
+        # 반도체·AI
+        "AMD","INTC","QCOM","AVGO","MU","AMAT","ARM","SMCI","TSM",
+        # AI 소프트·클라우드
+        "PLTR","AI","SOUN","BBAI","APP","SNOW","NET","DDOG","CRM","ORCL",
+        # 퀀텀컴퓨팅
+        "IONQ","RGTI","QBTS","QUBT",
+        # EV·항공우주
+        "RIVN","LCID","NIO","XPEV","JOBY","ACHR","RKLB",
+        # 바이오·헬스
+        "LLY","NVO","MRNA","PFE","AMGN","GILD",
+        # 핀테크·크립토
+        "COIN","MSTR","HOOD","SOFI","AFRM",
+        # 소비·엔터
+        "NFLX","DIS","SBUX","NKE","ABNB",
+        # ETF
+        "SPY","QQQ","SOXL","ARKK",
+    ],
+    "kr": [
+        "005930.KS","000660.KS","373220.KS","005380.KS","000270.KS",
+        "068270.KS","035720.KS","035420.KS","051910.KS","207940.KS",
+        "012450.KS","259960.KS","034020.KS","006400.KS","066570.KS",
+        "105560.KS","055550.KS","323410.KS","036570.KS","012330.KS",
+    ],
+}
+
+_market_cache = {"data": None}
+
+@app.route("/scan", methods=["POST"])
+def scan():
+    data      = request.get_json() or {}
+    market    = data.get("market", "all")
+    min_score = int(data.get("min_score", 0))
+    sig_filter = data.get("signal", "all")   # all / buy / hold / sell
+    above_filter = data.get("above_200", "all")  # all / yes / no
+    capital   = float(data.get("capital", 10_000_000))
+
+    if market == "us":
+        tickers = SCAN_TICKERS["us"]
+    elif market == "kr":
+        tickers = SCAN_TICKERS["kr"]
+    else:
+        tickers = SCAN_TICKERS["us"] + SCAN_TICKERS["kr"]
+
+    # 시장 데이터는 1번만 호출
+    try:
+        from main import analyze_market as _am
+        mkt = _am()
+    except Exception:
+        mkt = {"market_trend": "N/A", "vix": 0, "vix_status": "N/A", "dist_days": 0}
+
+    def analyze_one(ticker):
+        try:
+            stock = yf.Ticker(ticker)
+            df = stock.history(period="1y")
+            if df.empty or len(df) < 60:
+                return None
+            df.index = df.index.tz_localize(None) if df.index.tzinfo else df.index
+            info = {}
+            try:
+                info = stock.info or {}
+            except Exception:
+                pass
+            tech = analyze_technicals(df)
+            _, cs = check_canslim(info, df, mkt["market_trend"])
+            risk = score_and_risk(tech, cs, capital)
+            return {
+                "ticker":    ticker,
+                "name":      info.get("longName") or info.get("shortName") or ticker,
+                "sector":    info.get("sector") or info.get("industry") or "N/A",
+                "currency":  info.get("currency") or ("KRW" if ".KS" in ticker else "USD"),
+                "cur":       round(tech["cur"], 2),
+                "score":     risk["score"],
+                "signal":    risk["signal"],
+                "action":    risk["action"],
+                "rsi":       tech["rsi"],
+                "above_200": tech["above_200"],
+                "macd_st":   tech["macd_st"],
+                "vol_ratio": tech["vol_ratio"],
+                "stage":     tech["stage"],
+            }
+        except Exception:
+            return None
+
+    results = []
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        futures = {ex.submit(analyze_one, t): t for t in tickers}
+        for f in as_completed(futures):
+            try:
+                r = f.result(timeout=25)
+                if r:
+                    results.append(r)
+            except Exception:
+                pass
+
+    # 필터 적용
+    if min_score > 0:
+        results = [r for r in results if r["score"] >= min_score]
+    if sig_filter == "buy":
+        results = [r for r in results if "매수" in r["signal"]]
+    elif sig_filter == "hold":
+        results = [r for r in results if "관망" in r["signal"]]
+    elif sig_filter == "sell":
+        results = [r for r in results if "매도" in r["signal"]]
+    if above_filter == "yes":
+        results = [r for r in results if r["above_200"]]
+    elif above_filter == "no":
+        results = [r for r in results if not r["above_200"]]
+
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return jsonify(to_json(results))
 
 
 if __name__ == "__main__":

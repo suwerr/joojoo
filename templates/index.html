@@ -296,6 +296,33 @@ body {
 
 /* ── Disclaimer */
 .disclaimer { text-align: center; color: var(--muted); font-size: 0.78rem; padding: 1.5rem 0; }
+/* ── Scanner ── */
+.scanner-filters { display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end; margin-bottom:1rem; }
+.sf-group { display:flex; flex-direction:column; gap:0.3rem; }
+.sf-group label { font-size:0.78rem; color:var(--muted); font-weight:500; }
+.sf-group select, .sf-group input[type=number] {
+  background:var(--bg); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); padding:0.55rem 0.75rem; font-size:0.9rem; outline:none;
+  transition:border-color 0.2s; min-width:110px;
+}
+.sf-group select:focus, .sf-group input:focus { border-color:var(--blue); }
+.scan-progress { display:none; text-align:center; padding:2rem; }
+.scan-spinner { width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.75s linear infinite;margin:0 auto 0.75rem; }
+.scan-table-wrap { overflow-x:auto; }
+.scan-table { width:100%; border-collapse:collapse; font-size:0.83rem; }
+.scan-table th { text-align:left; padding:0.55rem 0.75rem; color:var(--muted); font-size:0.73rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--border); white-space:nowrap; cursor:pointer; user-select:none; }
+.scan-table th:hover { color:var(--blue); }
+.scan-table th .si { margin-left:0.25rem; opacity:0.35; }
+.scan-table th.sorted .si { opacity:1; color:var(--blue); }
+.scan-table td { padding:0.55rem 0.75rem; border-bottom:1px solid var(--border); white-space:nowrap; vertical-align:middle; }
+.scan-table tr:last-child td { border-bottom:none; }
+.scan-table tbody tr { cursor:pointer; transition:background 0.1s; }
+.scan-table tbody tr:hover { background:var(--surface2); }
+.st-ticker { font-size:0.75rem; color:var(--blue); margin-left:0.3rem; }
+.st-sector { font-size:0.73rem; color:var(--muted); display:block; }
+.score-pill { display:inline-block; padding:0.15rem 0.55rem; border-radius:20px; font-weight:700; font-size:0.8rem; }
+.scan-empty { text-align:center; padding:2rem; color:var(--muted); font-size:0.9rem; }
+
 /* ── Chart ── */
 .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.4rem 1.6rem; margin-bottom: 1.25rem; }
 .chart-periods { display: flex; gap: 0.4rem; margin-bottom: 0.9rem; }
@@ -346,6 +373,48 @@ body {
       <span class="chip" onclick="pick('035420.KS')">NAVER</span>
       <span class="chip" onclick="pick('035720.KS')">카카오</span>
     </div>
+  </div>
+
+  <!-- Scanner -->
+  <div class="form-card" style="margin-bottom:1.5rem">
+    <div style="font-size:0.85rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:1rem">🔍 종목 스캐너</div>
+    <div class="scanner-filters">
+      <div class="sf-group">
+        <label>시장</label>
+        <select id="sc-market">
+          <option value="all">전체 (미국+한국)</option>
+          <option value="us">미국</option>
+          <option value="kr">한국</option>
+        </select>
+      </div>
+      <div class="sf-group">
+        <label>신호</label>
+        <select id="sc-signal">
+          <option value="all">전체</option>
+          <option value="buy">매수만</option>
+          <option value="hold">관망만</option>
+          <option value="sell">매도만</option>
+        </select>
+      </div>
+      <div class="sf-group">
+        <label>200일선</label>
+        <select id="sc-200">
+          <option value="all">전체</option>
+          <option value="yes">위만</option>
+          <option value="no">아래만</option>
+        </select>
+      </div>
+      <div class="sf-group">
+        <label>최소 점수</label>
+        <input id="sc-minscore" type="number" value="0" min="0" max="100" step="5" style="width:90px">
+      </div>
+      <button class="btn" id="btn-scan" onclick="doScan()">스캔 시작 →</button>
+    </div>
+    <div class="scan-progress" id="sc-loading">
+      <div class="scan-spinner"></div>
+      <div style="color:var(--muted);font-size:0.85rem">종목 분석 중… 잠시 기다려주세요 (30~60초)</div>
+    </div>
+    <div id="sc-results"></div>
   </div>
 
   <div class="err-box" id="err-box"></div>
@@ -670,6 +739,103 @@ function render(d) {
   document.getElementById('insight-p').textContent = insight || '';
 
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ── Scanner ── */
+let _scanData = [];
+let _sortCol  = 'score';
+let _sortAsc  = false;
+
+async function doScan() {
+  const btn = document.getElementById('btn-scan');
+  btn.disabled = true;
+  document.getElementById('sc-loading').style.display = 'block';
+  document.getElementById('sc-results').innerHTML = '';
+
+  try {
+    const res = await fetch('/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        market:    document.getElementById('sc-market').value,
+        signal:    document.getElementById('sc-signal').value,
+        above_200: document.getElementById('sc-200').value,
+        min_score: parseInt(document.getElementById('sc-minscore').value) || 0,
+        capital:   parseFloat(document.getElementById('inp-capital').value) || 10_000_000,
+      }),
+    });
+    _scanData = await res.json();
+    renderScanTable(_sortCol, _sortAsc);
+  } catch (e) {
+    document.getElementById('sc-results').innerHTML = `<div class="scan-empty">❌ 스캔 중 오류가 발생했습니다.</div>`;
+  } finally {
+    document.getElementById('sc-loading').style.display = 'none';
+    btn.disabled = false;
+  }
+}
+
+function renderScanTable(col, asc) {
+  _sortCol = col; _sortAsc = asc;
+  const el = document.getElementById('sc-results');
+  if (!_scanData.length) { el.innerHTML = '<div class="scan-empty">조건에 맞는 종목이 없습니다.</div>'; return; }
+
+  const sorted = [..._scanData].sort((a, b) => {
+    let av = a[col], bv = b[col];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    return asc ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+  });
+
+  const cols = [
+    { key:'name',      label:'종목' },
+    { key:'score',     label:'점수' },
+    { key:'signal',    label:'신호' },
+    { key:'cur',       label:'현재가' },
+    { key:'rsi',       label:'RSI' },
+    { key:'above_200', label:'200일선' },
+    { key:'vol_ratio', label:'거래량%' },
+    { key:'macd_st',   label:'MACD' },
+  ];
+
+  const thead = cols.map(c => {
+    const active = c.key === col ? 'sorted' : '';
+    const arrow  = c.key === col ? (asc ? '▲' : '▼') : '▾';
+    return `<th class="${active}" onclick="renderScanTable('${c.key}', ${c.key===col?!asc:false})">${c.label}<span class="si">${arrow}</span></th>`;
+  }).join('');
+
+  const tbody = sorted.map(r => {
+    const sc = r.score;
+    const pillColor = sc >= 80 ? 'rgba(63,185,80,0.18);color:var(--green)' : sc >= 60 ? 'rgba(210,153,34,0.18);color:var(--yellow)' : 'rgba(248,81,73,0.18);color:var(--red)';
+    const sigColor  = r.signal.includes('매수') ? 'var(--green)' : r.signal.includes('매도') ? 'var(--red)' : 'var(--yellow)';
+    const a200 = r.above_200 ? '<span class="c-green">위 ✅</span>' : '<span class="c-red">아래 ⛔</span>';
+    const macdShort = r.macd_st.includes('골든') ? '<span class="c-green">골든✅</span>' : r.macd_st.includes('데드') ? '<span class="c-red">데드⛔</span>' : r.macd_st;
+    return `<tr onclick="scanPick('${esc(r.ticker)}')">
+      <td><span style="font-weight:600">${esc(r.name)}</span><span class="st-ticker">${esc(r.ticker)}</span><span class="st-sector">${esc(r.sector)}</span></td>
+      <td><span class="score-pill" style="background:${pillColor}">${sc}</span></td>
+      <td style="color:${sigColor};font-weight:600">${esc(r.signal)}</td>
+      <td>${r.cur.toLocaleString()} <span style="font-size:0.7rem;color:var(--muted)">${esc(r.currency)}</span></td>
+      <td class="${r.rsi>=50&&r.rsi<=70?'c-green':r.rsi>70?'c-yellow':'c-red'}">${r.rsi}</td>
+      <td>${a200}</td>
+      <td class="${r.vol_ratio>=150?'c-green':r.vol_ratio<80?'c-red':''}">${r.vol_ratio}%</td>
+      <td>${macdShort}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="font-size:0.8rem;color:var(--muted);margin-bottom:0.6rem">총 ${sorted.length}개 종목 · 행 클릭 시 상세 분석</div>
+    <div class="scan-table-wrap">
+      <table class="scan-table">
+        <thead><tr>${thead}</tr></thead>
+        <tbody>${tbody}</tbody>
+      </table>
+    </div>`;
+}
+
+function scanPick(ticker) {
+  acInput.value = ticker;
+  document.getElementById('selected-tag').style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  setTimeout(doAnalyze, 300);
 }
 
 /* ── Chart ── */
