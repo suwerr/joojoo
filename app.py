@@ -224,18 +224,28 @@ def analyze():
             return jsonify({"error": "티커를 입력해주세요."}), 400
 
         stock = yf.Ticker(ticker)
-        df = stock.history(period="2y")
+        df = None
+        for _attempt in range(3):
+            try:
+                df = stock.history(period="2y")
+                if not df.empty:
+                    break
+            except Exception:
+                pass
+            _time.sleep(1.5 ** _attempt)
 
-        if df.empty:
-            return jsonify({"error": f"'{ticker}' 데이터를 가져올 수 없습니다. 티커를 확인해주세요."}), 404
+        if df is None or df.empty:
+            return jsonify({"error": f"'{ticker}' 데이터를 가져올 수 없습니다. 잠시 후 다시 시도해주세요."}), 404
 
         df.index = df.index.tz_localize(None) if df.index.tzinfo else df.index
 
         info = {}
-        try:
-            info = stock.info or {}
-        except Exception:
-            pass
+        for _attempt in range(2):
+            try:
+                info = stock.info or {}
+                break
+            except Exception:
+                _time.sleep(1)
 
         market = analyze_market()
         tech = analyze_technicals(df)
@@ -321,25 +331,19 @@ def analyze():
         return jsonify({"error": str(e)}), 500
 
 
+import time as _time
+import pandas as pd
+
 SCAN_TICKERS = {
     "us": [
-        # 빅테크
         "AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","BRK-B","V","JPM",
-        # 반도체·AI
         "AMD","INTC","QCOM","AVGO","MU","AMAT","ARM","SMCI","TSM",
-        # AI 소프트·클라우드
         "PLTR","AI","SOUN","BBAI","APP","SNOW","NET","DDOG","CRM","ORCL",
-        # 퀀텀컴퓨팅
         "IONQ","RGTI","QBTS","QUBT",
-        # EV·항공우주
         "RIVN","LCID","NIO","XPEV","JOBY","ACHR","RKLB",
-        # 바이오·헬스
         "LLY","NVO","MRNA","PFE","AMGN","GILD",
-        # 핀테크·크립토
         "COIN","MSTR","HOOD","SOFI","AFRM",
-        # 소비·엔터
         "NFLX","DIS","SBUX","NKE","ABNB",
-        # ETF
         "SPY","QQQ","SOXL","ARKK",
     ],
     "kr": [
@@ -350,16 +354,75 @@ SCAN_TICKERS = {
     ],
 }
 
-_market_cache = {"data": None}
+# 스캐너용 표시 이름 (API 호출 없이 즉시 사용)
+TICKER_DISPLAY = {
+    "AAPL":("Apple","Technology"), "MSFT":("Microsoft","Technology"),
+    "GOOGL":("Alphabet","Technology"), "AMZN":("Amazon","Consumer"),
+    "META":("Meta","Technology"), "NVDA":("NVIDIA","Semiconductors"),
+    "TSLA":("Tesla","EV"), "BRK-B":("Berkshire","Financials"),
+    "V":("Visa","Financials"), "JPM":("JPMorgan","Financials"),
+    "AMD":("AMD","Semiconductors"), "INTC":("Intel","Semiconductors"),
+    "QCOM":("Qualcomm","Semiconductors"), "AVGO":("Broadcom","Semiconductors"),
+    "MU":("Micron","Semiconductors"), "AMAT":("Applied Materials","Semiconductors"),
+    "ARM":("ARM Holdings","Semiconductors"), "SMCI":("Super Micro","Technology"),
+    "TSM":("TSMC","Semiconductors"),
+    "PLTR":("Palantir","AI/Software"), "AI":("C3.ai","AI/Software"),
+    "SOUN":("SoundHound","AI/Software"), "BBAI":("BigBear.ai","AI/Software"),
+    "APP":("AppLovin","AI/Software"), "SNOW":("Snowflake","Cloud"),
+    "NET":("Cloudflare","Cloud"), "DDOG":("Datadog","Cloud"),
+    "CRM":("Salesforce","Cloud"), "ORCL":("Oracle","Cloud"),
+    "IONQ":("IonQ","Quantum"), "RGTI":("Rigetti","Quantum"),
+    "QBTS":("D-Wave","Quantum"), "QUBT":("Quantum Computing","Quantum"),
+    "RIVN":("Rivian","EV"), "LCID":("Lucid","EV"),
+    "NIO":("NIO","EV"), "XPEV":("XPeng","EV"),
+    "JOBY":("Joby Aviation","eVTOL"), "ACHR":("Archer Aviation","eVTOL"),
+    "RKLB":("Rocket Lab","Space"),
+    "LLY":("Eli Lilly","Biotech"), "NVO":("Novo Nordisk","Biotech"),
+    "MRNA":("Moderna","Biotech"), "PFE":("Pfizer","Biotech"),
+    "AMGN":("Amgen","Biotech"), "GILD":("Gilead","Biotech"),
+    "COIN":("Coinbase","Crypto"), "MSTR":("MicroStrategy","Crypto"),
+    "HOOD":("Robinhood","Fintech"), "SOFI":("SoFi","Fintech"),
+    "AFRM":("Affirm","Fintech"),
+    "NFLX":("Netflix","Entertainment"), "DIS":("Disney","Entertainment"),
+    "SBUX":("Starbucks","Consumer"), "NKE":("Nike","Consumer"),
+    "ABNB":("Airbnb","Travel"),
+    "SPY":("S&P500 ETF","ETF"), "QQQ":("NASDAQ ETF","ETF"),
+    "SOXL":("Semiconductor 3x ETF","ETF"), "ARKK":("ARK Innovation ETF","ETF"),
+    "005930.KS":("삼성전자","반도체"), "000660.KS":("SK하이닉스","반도체"),
+    "373220.KS":("LG에너지솔루션","배터리"), "005380.KS":("현대차","자동차"),
+    "000270.KS":("기아","자동차"), "068270.KS":("셀트리온","바이오"),
+    "035720.KS":("카카오","IT"), "035420.KS":("네이버","IT"),
+    "051910.KS":("LG화학","화학"), "207940.KS":("삼성바이오","바이오"),
+    "012450.KS":("한화에어로","방산"), "259960.KS":("크래프톤","게임"),
+    "034020.KS":("두산에너빌리티","에너지"), "006400.KS":("삼성SDI","배터리"),
+    "066570.KS":("LG전자","전자"), "105560.KS":("KB금융","금융"),
+    "055550.KS":("신한지주","금융"), "323410.KS":("카카오뱅크","금융"),
+    "036570.KS":("엔씨소프트","게임"), "012330.KS":("현대모비스","자동차"),
+}
+
+def _yf_download_with_retry(tickers_list, period="1y", max_retries=3):
+    """Rate limit 대응 재시도 포함 yf.download"""
+    for attempt in range(max_retries):
+        try:
+            raw = yf.download(
+                tickers_list, period=period,
+                group_by="ticker", auto_adjust=True,
+                progress=False, threads=False,
+            )
+            return raw
+        except Exception as e:
+            if attempt < max_retries - 1:
+                _time.sleep(2 ** attempt + 1)
+    return None
 
 @app.route("/scan", methods=["POST"])
 def scan():
-    data      = request.get_json() or {}
-    market    = data.get("market", "all")
-    min_score = int(data.get("min_score", 0))
-    sig_filter = data.get("signal", "all")   # all / buy / hold / sell
-    above_filter = data.get("above_200", "all")  # all / yes / no
-    capital   = float(data.get("capital", 10_000_000))
+    data         = request.get_json() or {}
+    market       = data.get("market", "all")
+    min_score    = int(data.get("min_score", 0))
+    sig_filter   = data.get("signal", "all")
+    above_filter = data.get("above_200", "all")
+    capital      = float(data.get("capital", 10_000_000))
 
     if market == "us":
         tickers = SCAN_TICKERS["us"]
@@ -368,33 +431,44 @@ def scan():
     else:
         tickers = SCAN_TICKERS["us"] + SCAN_TICKERS["kr"]
 
-    # 시장 데이터는 1번만 호출
     try:
-        from main import analyze_market as _am
-        mkt = _am()
+        mkt = analyze_market()
     except Exception:
         mkt = {"market_trend": "N/A", "vix": 0, "vix_status": "N/A", "dist_days": 0}
 
-    def analyze_one(ticker):
+    # 전체 가격 데이터를 단 1번의 API 호출로 수집
+    raw = _yf_download_with_retry(tickers)
+    if raw is None or raw.empty:
+        return jsonify({"error": "Rate limit — 잠시 후 다시 시도해주세요."}), 503
+
+    results = []
+    is_multi = isinstance(raw.columns, pd.MultiIndex)
+
+    for ticker in tickers:
         try:
-            stock = yf.Ticker(ticker)
-            df = stock.history(period="1y")
+            if is_multi:
+                if ticker not in raw.columns.get_level_values(0):
+                    continue
+                df = raw[ticker].dropna(how="all")
+            else:
+                df = raw.dropna(how="all")
+
             if df.empty or len(df) < 60:
-                return None
+                continue
             df.index = df.index.tz_localize(None) if df.index.tzinfo else df.index
-            info = {}
-            try:
-                info = stock.info or {}
-            except Exception:
-                pass
+
+            name, sector = TICKER_DISPLAY.get(ticker, (ticker, "N/A"))
+            currency = "KRW" if ".KS" in ticker else "USD"
+
             tech = analyze_technicals(df)
-            _, cs = check_canslim(info, df, mkt["market_trend"])
+            _, cs = check_canslim({}, df, mkt["market_trend"])
             risk = score_and_risk(tech, cs, capital)
-            return {
+
+            results.append({
                 "ticker":    ticker,
-                "name":      info.get("longName") or info.get("shortName") or ticker,
-                "sector":    info.get("sector") or info.get("industry") or "N/A",
-                "currency":  info.get("currency") or ("KRW" if ".KS" in ticker else "USD"),
+                "name":      name,
+                "sector":    sector,
+                "currency":  currency,
                 "cur":       round(tech["cur"], 2),
                 "score":     risk["score"],
                 "signal":    risk["signal"],
@@ -404,22 +478,10 @@ def scan():
                 "macd_st":   tech["macd_st"],
                 "vol_ratio": tech["vol_ratio"],
                 "stage":     tech["stage"],
-            }
+            })
         except Exception:
-            return None
+            continue
 
-    results = []
-    with ThreadPoolExecutor(max_workers=10) as ex:
-        futures = {ex.submit(analyze_one, t): t for t in tickers}
-        for f in as_completed(futures):
-            try:
-                r = f.result(timeout=25)
-                if r:
-                    results.append(r)
-            except Exception:
-                pass
-
-    # 필터 적용
     if min_score > 0:
         results = [r for r in results if r["score"] >= min_score]
     if sig_filter == "buy":
