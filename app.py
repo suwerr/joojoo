@@ -149,8 +149,52 @@ PRIVATE_COMPANIES = {
     "바이트댄스": "ByteDance",
     "샤인": "SHEIN",
     "레볼루트": "Revolut",
-    "클라나": "Klarna",
     "패스트": "Fast",
+}
+
+# 자연어 카테고리 → TICKER_DISPLAY 섹터 매핑
+CATEGORY_KEYWORDS = {
+    "반도체":     ["Semiconductors", "반도체"],
+    "인공지능":   ["AI/Software"],
+    "ai":         ["AI/Software"],
+    "클라우드":   ["Cloud"],
+    "saas":       ["Cloud", "AI/Software"],
+    "양자":       ["Quantum"],
+    "전기차":     ["EV", "자동차"],
+    "ev":         ["EV"],
+    "플라잉카":   ["eVTOL"],
+    "에어택시":   ["eVTOL"],
+    "evtol":      ["eVTOL"],
+    "우주":       ["Space"],
+    "로켓":       ["Space"],
+    "바이오":     ["Biotech", "바이오"],
+    "제약":       ["Biotech", "바이오"],
+    "헬스케어":   ["Biotech"],
+    "의료":       ["Biotech"],
+    "크립토":     ["Crypto"],
+    "코인":       ["Crypto"],
+    "암호화폐":   ["Crypto"],
+    "비트코인":   ["Crypto"],
+    "핀테크":     ["Fintech"],
+    "결제":       ["Fintech"],
+    "게임":       ["게임", "Entertainment"],
+    "엔터":       ["Entertainment", "게임"],
+    "여행":       ["Travel"],
+    "항공":       ["Travel", "eVTOL", "Space"],
+    "etf":        ["ETF"],
+    "지수":       ["ETF"],
+    "금융":       ["금융", "Financials"],
+    "은행":       ["금융", "Financials"],
+    "자동차":     ["자동차", "EV"],
+    "배터리":     ["배터리"],
+    "방산":       ["방산"],
+    "방위":       ["방산"],
+    "에너지":     ["에너지"],
+    "화학":       ["화학"],
+    "빅테크":     ["Technology"],
+    "소프트웨어": ["AI/Software", "Cloud"],
+    "사이버보안": ["Cloud", "AI/Software"],
+    "it":         ["IT"],
 }
 
 def generate_chart_image(df, ticker):
@@ -216,6 +260,29 @@ def search():
                 "type":     "Equity",
             })
         return jsonify(results)
+
+    # 카테고리 자연어 검색 ("반도체 관련주", "AI 주식 추천" 등)
+    cat_sectors = set()
+    for kw, sectors in CATEGORY_KEYWORDS.items():
+        if kw in q_lower:
+            cat_sectors.update(sectors)
+    if cat_sectors:
+        matched_kw = next((kw for kw in CATEGORY_KEYWORDS if kw in q_lower), "카테고리")
+        cat_results = [{
+            "symbol": "__HINT__",
+            "name": f"🔍 '{matched_kw}' 관련 종목",
+            "exchange": "", "type": "",
+        }]
+        for sym, (name, sector) in TICKER_DISPLAY.items():
+            if sector in cat_sectors:
+                cat_results.append({
+                    "symbol":   sym,
+                    "name":     f"{name} ({sector})",
+                    "exchange": "KRX" if ".KS" in sym else "US",
+                    "type":     "ETF" if sector == "ETF" else "Equity",
+                })
+        if len(cat_results) > 1:
+            return jsonify(cat_results[:9])
 
     is_korean = any('가' <= c <= '힣' for c in q)
     try:
@@ -486,6 +553,16 @@ def scan():
     else:
         tickers = SCAN_TICKERS["us"] + SCAN_TICKERS["kr"]
 
+    # 자연어 검색어로 카테고리 필터링
+    query = (data.get("query") or "").strip().lower().replace(" ", "")
+    if query:
+        cat_sectors = set()
+        for kw, sectors in CATEGORY_KEYWORDS.items():
+            if kw in query:
+                cat_sectors.update(sectors)
+        if cat_sectors:
+            tickers = [t for t in tickers if TICKER_DISPLAY.get(t, ("", "N/A"))[1] in cat_sectors]
+
     try:
         mkt = analyze_market()
     except Exception:
@@ -519,20 +596,35 @@ def scan():
             _, cs = check_canslim({}, df, mkt["market_trend"])
             risk = score_and_risk(tech, cs, capital)
 
+            prev_close = float(df['Close'].iloc[-2]) if len(df) >= 2 else float(df['Close'].iloc[-1])
+            cur_price  = round(tech["cur"], 2)
+            chg        = round(cur_price - prev_close, 2)
+            chg_pct    = round((chg / prev_close * 100) if prev_close else 0, 2)
+            last_vol   = int(df['Volume'].iloc[-1])
+
             results.append({
-                "ticker":    ticker,
-                "name":      name,
-                "sector":    sector,
-                "currency":  currency,
-                "cur":       round(tech["cur"], 2),
-                "score":     risk["score"],
-                "signal":    risk["signal"],
-                "action":    risk["action"],
-                "rsi":       tech["rsi"],
-                "above_200": tech["above_200"],
-                "macd_st":   tech["macd_st"],
-                "vol_ratio": tech["vol_ratio"],
-                "stage":     tech["stage"],
+                "ticker":        ticker,
+                "name":          name,
+                "sector":        sector,
+                "currency":      currency,
+                "cur":           cur_price,
+                "change":        chg,
+                "change_pct":    chg_pct,
+                "volume":        last_vol,
+                "volume_amount": int(cur_price * last_vol / 1_000_000),
+                "score":         risk["score"],
+                "signal":        risk["signal"],
+                "action":        risk["action"],
+                "rsi":           tech["rsi"],
+                "above_200":     tech["above_200"],
+                "macd_st":       tech["macd_st"],
+                "vol_ratio":     tech["vol_ratio"],
+                "stage":         tech["stage"],
+                "stage_n":       tech["stage_n"],
+                "bb_squeeze":    tech["bb_squeeze"],
+                "bb_expansion":  tech["bb_expansion"],
+                "obv_bull_div":  tech["obv_bull_div"],
+                "obv_trend":     tech["obv_trend"],
             })
         except Exception:
             continue
