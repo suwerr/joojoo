@@ -32,118 +32,100 @@ body {
 .header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 1rem 1.5rem;
+  padding: 0.9rem 1.25rem;
+}
+.header h1 { font-size: 1.2rem; font-weight: 700; }
+.header p  { color: var(--muted); font-size: 0.78rem; margin-top: 0.1rem; }
+
+/* ── 필터 패널 (상단) ── */
+.filter-panel {
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* 1행: 시장 + 카테고리 + 검색버튼 */
+.filter-row1 {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   gap: 0.6rem;
+  flex-wrap: wrap;
 }
-.header h1 { font-size: 1.3rem; font-weight: 700; }
-.header p  { color: var(--muted); font-size: 0.8rem; margin-top: 0.1rem; }
 
-.mkt-tabs { display: flex; gap: 0.35rem; }
+.mkt-tabs { display: flex; gap: 0.3rem; flex-shrink: 0; }
 .mkt-tab {
-  padding: 0.28rem 0.8rem; border-radius: 20px; font-size: 0.8rem;
+  padding: 0.35rem 0.85rem; border-radius: 20px; font-size: 0.82rem;
   cursor: pointer; border: 1px solid var(--border); color: var(--muted);
   background: transparent; transition: all 0.15s; font-weight: 600;
 }
 .mkt-tab:hover:not(.active) { border-color: var(--blue); color: var(--blue); }
 .mkt-tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
 
-/* ── 레이아웃 ── */
-.layout {
-  display: flex;
-  height: calc(100vh - 60px);
-}
-
-/* ── 왼쪽 필터 패널 ── */
-.filter-panel {
-  width: 230px;
-  flex-shrink: 0;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 1rem 0.85rem 1.25rem;
-  gap: 0.9rem;
-  overflow-y: auto;
-}
-
-.filter-panel-title {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  padding-bottom: 0.6rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.filter-group { display: flex; flex-direction: column; gap: 0.28rem; }
-.filter-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.filter-group select {
-  width: 100%;
+.filter-select {
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--text);
-  padding: 0.42rem 0.6rem;
-  font-size: 0.83rem;
+  padding: 0.38rem 0.65rem;
+  font-size: 0.85rem;
   outline: none;
   cursor: pointer;
   transition: border-color 0.15s;
+  flex: 1;
+  min-width: 140px;
 }
-.filter-group select:focus { border-color: var(--blue); }
+.filter-select:focus    { border-color: var(--blue); }
+.filter-select:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .btn-search {
-  padding-bottom: 0.25rem;
-}
-.btn-search button {
-  width: 100%;
   background: var(--blue);
   color: #fff;
   border: none;
   border-radius: 8px;
-  padding: 0.65rem;
-  font-size: 0.95rem;
+  padding: 0.4rem 1.4rem;
+  font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
   transition: opacity 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
-.btn-search button:hover    { opacity: 0.85; }
-.btn-search button:disabled { opacity: 0.45; cursor: not-allowed; }
-.filter-divider { border-top: 1px solid var(--border); margin: 0.25rem 0; }
+.btn-search:hover    { opacity: 0.85; }
+.btn-search:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ── 오른쪽 결과 패널 ── */
-.main-panel {
-  flex: 1;
+/* 2행: 나머지 조건들 */
+.filter-row2 {
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.filter-row2 .filter-select { min-width: 0; flex: 1 1 140px; }
+
+.filter-divider {
+  width: 1px; background: var(--border);
+  align-self: stretch; flex-shrink: 0;
+  margin: 0 0.1rem;
+}
+
+/* ── 결과 패널 (하단) ── */
+.result-panel {
+  flex: 1;
 }
 
 .result-header {
-  padding: 0.75rem 1.5rem;
+  padding: 0.7rem 1.25rem;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 0.75rem;
   background: var(--surface);
-  flex-shrink: 0;
-  min-height: 48px;
 }
-.result-title  { font-size: 0.95rem; font-weight: 700; }
-.result-count  { font-size: 0.82rem; color: var(--muted); }
+.result-title { font-size: 0.95rem; font-weight: 700; }
+.result-count { font-size: 0.82rem; color: var(--muted); }
 .result-count strong { color: var(--text); }
-
-.result-body { flex: 1; overflow-y: auto; }
 
 /* 로딩 / 빈 상태 */
 .loading-wrap {
@@ -151,11 +133,11 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 5rem 2rem;
+  padding: 4rem 2rem;
   gap: 1rem;
 }
 .spinner {
-  width: 36px; height: 36px;
+  width: 34px; height: 34px;
   border: 3px solid var(--border);
   border-top-color: var(--blue);
   border-radius: 50%;
@@ -168,18 +150,18 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 5rem 2rem;
+  padding: 4rem 2rem;
   color: var(--muted);
   font-size: 0.9rem;
-  gap: 0.5rem;
+  gap: 0.4rem;
   text-align: center;
 }
-.empty-icon { font-size: 2.5rem; opacity: 0.4; margin-bottom: 0.25rem; }
+.empty-icon { font-size: 2.2rem; opacity: 0.4; margin-bottom: 0.2rem; }
 
 /* 결과 테이블 */
+.table-wrap { overflow-x: auto; }
 .result-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
 .result-table th {
-  position: sticky; top: 0; z-index: 1;
   background: var(--surface2);
   text-align: right; padding: 0.55rem 1rem;
   color: var(--muted); font-size: 0.72rem; font-weight: 700;
@@ -187,8 +169,8 @@ body {
   border-bottom: 1px solid var(--border); white-space: nowrap;
   cursor: pointer; user-select: none;
 }
-.result-table th:first-child { text-align: left; padding-left: 1.5rem; }
-.result-table th:hover { color: var(--blue); }
+.result-table th:first-child { text-align: left; padding-left: 1.25rem; }
+.result-table th:hover  { color: var(--blue); }
 .result-table th.sorted { color: var(--blue); }
 .result-table td {
   padding: 0.55rem 1rem;
@@ -197,183 +179,164 @@ body {
   text-align: right;
   vertical-align: middle;
 }
-.result-table td:first-child { text-align: left; padding-left: 1.5rem; }
+.result-table td:first-child { text-align: left; padding-left: 1.25rem; }
 .result-table tr:last-child td { border-bottom: none; }
 .result-table tbody tr:hover td { background: var(--surface2); }
 
-.st-ticker { font-size: 0.74rem; color: var(--blue); margin-left: 0.35rem; }
-.st-sector { font-size: 0.72rem; color: var(--muted); display: block; margin-top: 0.05rem; }
+.st-ticker { font-size: 0.74rem; color: var(--blue); margin-left: 0.3rem; }
+.st-sector { font-size: 0.72rem; color: var(--muted); display: block; margin-top: 0.03rem; }
 .score-pill {
-  display: inline-block; padding: 0.15rem 0.55rem;
+  display: inline-block; padding: 0.15rem 0.5rem;
   border-radius: 20px; font-weight: 700; font-size: 0.78rem;
 }
 
 .disclaimer {
   text-align: center; color: var(--muted); font-size: 0.75rem;
   padding: 0.55rem; border-top: 1px solid var(--border);
-  background: var(--surface); flex-shrink: 0;
+  background: var(--surface);
+}
+
+/* ── 모바일 ── */
+@media (max-width: 600px) {
+  .filter-select { min-width: calc(50% - 0.3rem); flex: 1 1 calc(50% - 0.3rem); }
+  .result-table th, .result-table td { padding: 0.5rem 0.6rem; font-size: 0.78rem; }
+  .result-table th:first-child, .result-table td:first-child { padding-left: 0.75rem; }
 }
 </style>
 </head>
 <body>
 
+<!-- 헤더 -->
 <header class="header">
-  <div>
-    <h1>📊 조건검색</h1>
-    <p>CANSLIM + 퀀트 알파 — 조건을 설정하고 검색하세요</p>
-  </div>
-  <div class="mkt-tabs">
-    <button class="mkt-tab active" data-mkt="all" onclick="setMarket('all')">전체</button>
-    <button class="mkt-tab" data-mkt="us"  onclick="setMarket('us')">미국</button>
-    <button class="mkt-tab" data-mkt="kr"  onclick="setMarket('kr')">한국</button>
-  </div>
+  <h1>📊 조건검색</h1>
+  <p>CANSLIM + 퀀트 알파 — 조건을 설정하고 검색하세요</p>
 </header>
 
-<div class="layout">
+<!-- 필터 패널 (상단) -->
+<div class="filter-panel">
 
-  <!-- 왼쪽: 필터 패널 -->
-  <div class="filter-panel">
-    <div class="filter-panel-title">🔎 조건 설정</div>
-
-    <div class="filter-group">
-      <div class="filter-label">카테고리</div>
-      <select id="f-category">
-        <option value="">전체 종목</option>
-        <option value="반도체">🔥 반도체</option>
-        <option value="ai">🔥 AI / 인공지능</option>
-        <option value="빅테크">🔥 빅테크</option>
-        <option value="전기차">⚡ 전기차 (EV)</option>
-        <option value="바이오">💊 바이오 / 제약</option>
-        <option value="크립토">🪙 크립토 / 코인</option>
-        <option value="배터리">🔋 배터리</option>
-        <option value="자동차">🚗 자동차</option>
-        <option value="클라우드">☁️ 클라우드 / SaaS</option>
-        <option value="게임">🎮 게임</option>
-        <option value="방산">🛡️ 방산</option>
-        <option value="우주">🚀 우주 / 로켓</option>
-        <option value="양자">⚛️ 양자컴퓨팅</option>
-        <option value="핀테크">💳 핀테크</option>
-        <option value="etf">📊 ETF / 지수</option>
-        <option value="금융">🏦 금융 / 은행</option>
-        <option value="it">💻 IT (한국)</option>
-        <option value="에너지">⛽ 에너지</option>
-        <option value="엔터">🎬 엔터테인먼트</option>
-        <option value="여행">✈️ 여행 / 항공</option>
-        <option value="플라잉카">🚁 플라잉카 / eVTOL</option>
-        <option value="화학">🧪 화학</option>
-      </select>
+  <!-- 1행: 시장 + 카테고리 + 검색 -->
+  <div class="filter-row1">
+    <div class="mkt-tabs">
+      <button class="mkt-tab active" data-mkt="all" onclick="setMarket('all')">전체</button>
+      <button class="mkt-tab" data-mkt="us"  onclick="setMarket('us')">미국</button>
+      <button class="mkt-tab" data-mkt="kr"  onclick="setMarket('kr')">한국</button>
     </div>
-
-    <div class="btn-search">
-      <button id="btn-search" onclick="doSearch()">🔍 검색</button>
-    </div>
-
-    <div class="filter-divider"></div>
-
-    <div class="filter-group">
-      <div class="filter-label">추세 조건</div>
-      <select id="f-trend" onchange="selectCond('f-trend')">
-        <option value="">전체</option>
-        <option value="above_200">200일선 위 종목</option>
-        <option value="stage1">Stage 1 상승 추세</option>
-        <option value="stage2">Stage 2 상승 추세</option>
-        <option value="stage3">Stage 3 횡보 추세</option>
-        <option value="golden">골든크로스 발생</option>
-        <option value="dead">데드크로스 발생</option>
-        <option value="ma_align">이동평균 정배열</option>
-      </select>
-    </div>
-
-    <div class="filter-group">
-      <div class="filter-label">거래량 조건</div>
-      <select id="f-volume" onchange="selectCond('f-volume')">
-        <option value="">전체</option>
-        <option value="vol_surge">거래량 급증 (150%↑)</option>
-        <option value="squeeze">볼린저 수축 (폭발 임박)</option>
-        <option value="bb_expand">볼린저 확장 (추세 시작)</option>
-        <option value="prebull">장대양봉 예고</option>
-        <option value="prebear">장대음봉 예고</option>
-      </select>
-    </div>
-
-    <div class="filter-group">
-      <div class="filter-label">세력 / 패턴</div>
-      <select id="f-pattern" onchange="selectCond('f-pattern')">
-        <option value="">전체</option>
-        <option value="reversal">추세전환 임박</option>
-        <option value="accumulation">세력 매집 중</option>
-        <option value="breaking">막 뜨는 주식</option>
-      </select>
-    </div>
-
-    <div class="filter-group">
-      <div class="filter-label">매매 환경</div>
-      <select id="f-trading" onchange="selectCond('f-trading')">
-        <option value="">전체</option>
-        <option value="daytrading">단타하기 좋은 종목</option>
-        <option value="swing">스윙하기 좋은 종목</option>
-      </select>
-    </div>
-
-    <div class="filter-group">
-      <div class="filter-label">퀀트 신호</div>
-      <select id="f-quant" onchange="selectCond('f-quant')">
-        <option value="">전체</option>
-        <option value="score80">강매수 신호 (80점↑)</option>
-        <option value="score70">매수 신호 (70점↑)</option>
-        <option value="buy">매수 신호 종목</option>
-        <option value="sell">매도 신호 종목</option>
-      </select>
-    </div>
-
+    <select id="f-category" class="filter-select">
+      <option value="">전체 종목</option>
+      <option value="반도체">🔥 반도체</option>
+      <option value="ai">🔥 AI / 인공지능</option>
+      <option value="빅테크">🔥 빅테크</option>
+      <option value="전기차">⚡ 전기차 (EV)</option>
+      <option value="바이오">💊 바이오 / 제약</option>
+      <option value="크립토">🪙 크립토 / 코인</option>
+      <option value="배터리">🔋 배터리</option>
+      <option value="자동차">🚗 자동차</option>
+      <option value="클라우드">☁️ 클라우드 / SaaS</option>
+      <option value="게임">🎮 게임</option>
+      <option value="방산">🛡️ 방산</option>
+      <option value="우주">🚀 우주 / 로켓</option>
+      <option value="양자">⚛️ 양자컴퓨팅</option>
+      <option value="핀테크">💳 핀테크</option>
+      <option value="etf">📊 ETF / 지수</option>
+      <option value="금융">🏦 금융 / 은행</option>
+      <option value="it">💻 IT (한국)</option>
+      <option value="에너지">⛽ 에너지</option>
+      <option value="엔터">🎬 엔터테인먼트</option>
+      <option value="여행">✈️ 여행 / 항공</option>
+      <option value="플라잉카">🚁 플라잉카 / eVTOL</option>
+      <option value="화학">🧪 화학</option>
+    </select>
+    <button class="btn-search" id="btn-search" onclick="doSearch()">🔍 검색</button>
   </div>
 
-  <!-- 오른쪽: 결과 -->
-  <div class="main-panel">
-    <div class="result-header">
-      <span class="result-title" id="result-title">조건을 설정하고 검색하세요</span>
-      <span class="result-count" id="result-count"></span>
-    </div>
-
-    <div class="result-body" id="result-body">
-      <div class="loading-wrap" id="loading">
-        <div class="spinner"></div>
-        <div style="color:var(--muted);font-size:0.85rem">종목 분석 중… 잠시 기다려주세요 (30~60초)</div>
-      </div>
-
-      <div class="empty-state" id="empty-guide">
-        <div class="empty-icon">🔎</div>
-        <div>왼쪽에서 조건을 설정하고</div>
-        <div>검색 버튼을 누르세요</div>
-      </div>
-
-      <div class="empty-state" id="empty-none" style="display:none">
-        <div class="empty-icon">📭</div>
-        <div id="empty-msg">해당 조건에 맞는 종목이 없습니다</div>
-      </div>
-
-      <table class="result-table" id="result-table" style="display:none">
-        <thead>
-          <tr>
-            <th onclick="sortBy('name')">종목명<span id="si-name"></span></th>
-            <th onclick="sortBy('cur')">현재가<span id="si-cur"></span></th>
-            <th onclick="sortBy('change')">전일대비<span id="si-change"></span></th>
-            <th onclick="sortBy('change_pct')">등락률<span id="si-change_pct"></span></th>
-            <th onclick="sortBy('volume')">거래량<span id="si-volume"></span></th>
-            <th onclick="sortBy('volume_amount')">거래대금(백만)<span id="si-volume_amount"></span></th>
-            <th onclick="sortBy('score')">점수<span id="si-score"></span></th>
-            <th onclick="sortBy('rsi')">RSI<span id="si-rsi"></span></th>
-            <th onclick="sortBy('signal')">신호<span id="si-signal"></span></th>
-          </tr>
-        </thead>
-        <tbody id="result-tbody"></tbody>
-      </table>
-    </div>
-
-    <div class="disclaimer">⚠️ 본 분석은 투자 참고용이며, 투자 결정의 책임은 전적으로 본인에게 있습니다.</div>
+  <!-- 2행: 세부 조건 -->
+  <div class="filter-row2">
+    <select id="f-trend" class="filter-select" onchange="selectCond('f-trend')" disabled>
+      <option value="">추세 조건</option>
+      <option value="above_200">200일선 위 종목</option>
+      <option value="stage1">Stage 1 상승 추세</option>
+      <option value="stage2">Stage 2 상승 추세</option>
+      <option value="stage3">Stage 3 횡보 추세</option>
+      <option value="golden">골든크로스 발생</option>
+      <option value="dead">데드크로스 발생</option>
+      <option value="ma_align">이동평균 정배열</option>
+    </select>
+    <select id="f-volume" class="filter-select" onchange="selectCond('f-volume')" disabled>
+      <option value="">거래량 조건</option>
+      <option value="vol_surge">거래량 급증 (150%↑)</option>
+      <option value="squeeze">볼린저 수축 (폭발 임박)</option>
+      <option value="bb_expand">볼린저 확장 (추세 시작)</option>
+      <option value="prebull">장대양봉 예고</option>
+      <option value="prebear">장대음봉 예고</option>
+    </select>
+    <select id="f-pattern" class="filter-select" onchange="selectCond('f-pattern')" disabled>
+      <option value="">세력 / 패턴</option>
+      <option value="reversal">추세전환 임박</option>
+      <option value="accumulation">세력 매집 중</option>
+      <option value="breaking">막 뜨는 주식</option>
+    </select>
+    <select id="f-trading" class="filter-select" onchange="selectCond('f-trading')" disabled>
+      <option value="">매매 환경</option>
+      <option value="daytrading">단타하기 좋은 종목</option>
+      <option value="swing">스윙하기 좋은 종목</option>
+    </select>
+    <select id="f-quant" class="filter-select" onchange="selectCond('f-quant')" disabled>
+      <option value="">퀀트 신호</option>
+      <option value="score80">강매수 신호 (80점↑)</option>
+      <option value="score70">매수 신호 (70점↑)</option>
+      <option value="buy">매수 신호 종목</option>
+      <option value="sell">매도 신호 종목</option>
+    </select>
   </div>
 
 </div>
+
+<!-- 결과 패널 (하단) -->
+<div class="result-panel">
+
+  <div class="result-header" id="result-header">
+    <span class="result-title" id="result-title">조건을 설정하고 검색하세요</span>
+    <span class="result-count" id="result-count"></span>
+  </div>
+
+  <div class="loading-wrap" id="loading">
+    <div class="spinner"></div>
+    <div style="color:var(--muted);font-size:0.85rem">종목 분석 중… 잠시 기다려주세요 (30~60초)</div>
+  </div>
+
+  <div class="empty-state" id="empty-guide">
+    <div class="empty-icon">🔎</div>
+    <div>카테고리를 선택하고 검색 버튼을 누르세요</div>
+  </div>
+
+  <div class="empty-state" id="empty-none" style="display:none">
+    <div class="empty-icon">📭</div>
+    <div id="empty-msg">해당 조건에 맞는 종목이 없습니다</div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="result-table" id="result-table" style="display:none">
+      <thead>
+        <tr>
+          <th onclick="sortBy('name')">종목명<span id="si-name"></span></th>
+          <th onclick="sortBy('cur')">현재가<span id="si-cur"></span></th>
+          <th onclick="sortBy('change')">전일대비<span id="si-change"></span></th>
+          <th onclick="sortBy('change_pct')">등락률<span id="si-change_pct"></span></th>
+          <th onclick="sortBy('volume')">거래량<span id="si-volume"></span></th>
+          <th onclick="sortBy('volume_amount')">거래대금(백만)<span id="si-volume_amount"></span></th>
+          <th onclick="sortBy('score')">점수<span id="si-score"></span></th>
+          <th onclick="sortBy('rsi')">RSI<span id="si-rsi"></span></th>
+          <th onclick="sortBy('signal')">신호<span id="si-signal"></span></th>
+        </tr>
+      </thead>
+      <tbody id="result-tbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="disclaimer">⚠️ 본 분석은 투자 참고용이며, 투자 결정의 책임은 전적으로 본인에게 있습니다.</div>
 
 <script>
 function fmt(v, d = 2) {
@@ -434,17 +397,28 @@ const COND_META = {
   sell:         { fn: r => r.signal.includes('매도') },
 };
 
-let _cache   = {};     // { 'all': [...], 'us': [...], 'kr': [...] }
+const COND_SELECTS = ['f-trend', 'f-volume', 'f-pattern', 'f-trading', 'f-quant'];
+
+let _cache   = {};
 let _market  = 'all';
 let _rows    = [];
 let _sortCol = 'score';
 let _sortAsc = false;
 
-async function setMarket(mkt) {
+function setMarket(mkt) {
   if (_market === mkt) return;
   _market = mkt;
   document.querySelectorAll('.mkt-tab').forEach(t => t.classList.toggle('active', t.dataset.mkt === mkt));
-  await fetchMarket(mkt);
+  COND_SELECTS.forEach(id => {
+    const el = document.getElementById(id);
+    el.value = el.options[0].value;
+    el.disabled = !_cache[mkt];
+  });
+}
+
+async function doSearch() {
+  if (!_cache[_market]) await fetchMarket(_market);
+  applyFilters();
 }
 
 async function fetchMarket(market) {
@@ -460,8 +434,9 @@ async function fetchMarket(market) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || '오류');
     _cache[market] = Array.isArray(data) ? data : [];
+    COND_SELECTS.forEach(id => document.getElementById(id).disabled = false);
   } catch (e) {
-    _cache[market] = [];
+    _cache[market] = null;
     showEmpty('❌ ' + e.message);
   } finally {
     showLoading(false);
@@ -469,22 +444,19 @@ async function fetchMarket(market) {
   }
 }
 
-async function doSearch() {
-  if (!_cache[_market]) await fetchMarket(_market);
-  applyFilters();
-}
-
-const COND_SELECTS = ['f-trend', 'f-volume', 'f-pattern', 'f-trading', 'f-quant'];
-
 function selectCond(changedId) {
   COND_SELECTS.forEach(id => {
-    if (id !== changedId) document.getElementById(id).value = '';
+    if (id !== changedId) {
+      const el = document.getElementById(id);
+      el.value = el.options[0].value;
+    }
   });
   applyFilters();
 }
 
 function applyFilters() {
-  if (!_cache[_market]) return;  // 검색 전엔 무시
+  if (!_cache[_market]) return;
+
   const cat     = document.getElementById('f-category').value;
   const trend   = document.getElementById('f-trend').value;
   const volume  = document.getElementById('f-volume').value;
@@ -492,20 +464,18 @@ function applyFilters() {
   const trading = document.getElementById('f-trading').value;
   const quant   = document.getElementById('f-quant').value;
 
-  let rows = _cache[_market] || [];
-
-  if (cat && CAT_SECTORS[cat])         rows = rows.filter(r => CAT_SECTORS[cat].includes(r.sector));
-  if (trend   && COND_META[trend])     rows = rows.filter(COND_META[trend].fn);
-  if (volume  && COND_META[volume])    rows = rows.filter(COND_META[volume].fn);
-  if (pattern && COND_META[pattern])   rows = rows.filter(COND_META[pattern].fn);
-  if (trading && COND_META[trading])   rows = rows.filter(COND_META[trading].fn);
-  if (quant   && COND_META[quant])     rows = rows.filter(COND_META[quant].fn);
+  let rows = _cache[_market];
+  if (cat     && CAT_SECTORS[cat])       rows = rows.filter(r => CAT_SECTORS[cat].includes(r.sector));
+  if (trend   && COND_META[trend])       rows = rows.filter(COND_META[trend].fn);
+  if (volume  && COND_META[volume])      rows = rows.filter(COND_META[volume].fn);
+  if (pattern && COND_META[pattern])     rows = rows.filter(COND_META[pattern].fn);
+  if (trading && COND_META[trading])     rows = rows.filter(COND_META[trading].fn);
+  if (quant   && COND_META[quant])       rows = rows.filter(COND_META[quant].fn);
 
   _rows = rows;
   _sortCol = 'score';
   _sortAsc = false;
 
-  // 결과 제목 조합
   const labels = [
     cat     ? document.querySelector(`#f-category option[value="${cat}"]`)?.textContent : '',
     trend   ? document.querySelector(`#f-trend option[value="${trend}"]`)?.textContent : '',
@@ -515,15 +485,14 @@ function applyFilters() {
     quant   ? document.querySelector(`#f-quant option[value="${quant}"]`)?.textContent : '',
   ].filter(Boolean);
 
-  const titleText = labels.length ? labels.join('  ·  ') : '전체 종목';
-  renderTable(titleText);
+  renderTable(labels.length ? labels.join(' · ') : '전체 종목');
 }
 
 function renderTable(titleText) {
   const mktLabel = _market === 'us' ? '미국' : _market === 'kr' ? '한국' : '전체';
+  document.getElementById('result-title').textContent = titleText;
 
   if (!_rows.length) {
-    document.getElementById('result-title').textContent = titleText;
     document.getElementById('result-count').innerHTML = '';
     document.getElementById('result-table').style.display = 'none';
     showEmpty('해당 조건에 맞는 종목이 없습니다');
@@ -531,7 +500,6 @@ function renderTable(titleText) {
   }
 
   document.getElementById('empty-none').style.display = 'none';
-  document.getElementById('result-title').textContent = titleText;
   document.getElementById('result-table').style.display = 'table';
   renderRows();
   updateSortIcons();
@@ -540,10 +508,8 @@ function renderTable(titleText) {
 }
 
 function sortBy(col) {
-  _sortCol = col === _sortCol && !_sortAsc ? col : col;
-  _sortAsc = col === _sortCol ? !_sortAsc : (col === 'name');
-  // 위 로직 단순화
-  if (_sortCol === col) _sortAsc = !_sortAsc; else { _sortCol = col; _sortAsc = col === 'name'; }
+  if (_sortCol === col) _sortAsc = !_sortAsc;
+  else { _sortCol = col; _sortAsc = col === 'name'; }
   renderRows();
   updateSortIcons();
 }
@@ -554,8 +520,8 @@ function updateSortIcons() {
     if (el) el.textContent = k === _sortCol ? (_sortAsc ? ' ▲' : ' ▼') : '';
   });
   document.querySelectorAll('.result-table th').forEach(th => {
-    const match = (th.getAttribute('onclick') || '').match(/sortBy\('(\w+)'\)/);
-    th.classList.toggle('sorted', match && match[1] === _sortCol);
+    const m = (th.getAttribute('onclick') || '').match(/sortBy\('(\w+)'\)/);
+    th.classList.toggle('sorted', !!m && m[1] === _sortCol);
   });
 }
 
@@ -610,10 +576,14 @@ function showLoading(on) {
   }
 }
 
+function showEmpty(msg) {
+  document.getElementById('empty-none').style.display = 'flex';
+  document.getElementById('empty-msg').textContent = msg;
+  document.getElementById('empty-guide').style.display = 'none';
+}
+
 function copyTicker(ticker) {
-  navigator.clipboard.writeText(ticker).then(() => {
-    showToast(ticker + ' 복사됨');
-  });
+  navigator.clipboard.writeText(ticker).then(() => showToast(ticker + ' 복사됨'));
 }
 
 let _toastTimer = null;
@@ -629,12 +599,6 @@ function showToast(msg) {
   el.style.opacity = '1';
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 1800);
-}
-
-function showEmpty(msg) {
-  document.getElementById('empty-none').style.display = 'flex';
-  document.getElementById('empty-msg').textContent = msg;
-  document.getElementById('empty-guide').style.display = 'none';
 }
 </script>
 </body>
